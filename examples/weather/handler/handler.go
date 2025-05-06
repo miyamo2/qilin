@@ -151,7 +151,7 @@ func WeatherForecastChangeObserver(c qilin.ResourceChangeContext) {
 		cityWeathers        = make([]CityWeather, 0)
 		previousCityWeather = make([]CityWeather, 0)
 	)
-	for t := range time.Tick(25 * time.Second) {
+	for t := range time.Tick(time.Minute) {
 		select {
 		case <-c.Context().Done():
 			return
@@ -184,7 +184,7 @@ func ResourceListChangeObserver(c qilin.ResourceListChangeContext) {
 		cityWeathers        = make([]CityWeather, 0)
 		previousCityWeather = make([]CityWeather, 0)
 	)
-	for t := range time.Tick(25 * time.Second) {
+	for t := range time.Tick(time.Minute) {
 		select {
 		case <-c.Context().Done():
 			return

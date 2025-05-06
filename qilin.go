@@ -8,6 +8,7 @@ import (
 	"github.com/miyamo2/qilin/transport"
 	"github.com/oklog/ulid/v2"
 	"golang.org/x/exp/jsonrpc2"
+	"iter"
 	"maps"
 	"net/url"
 	"slices"
@@ -358,22 +359,21 @@ func (q *Qilin) Resource(name, uri string, handler ResourceHandlerFunc, options 
 	}
 	n, _, _ := q.resourceNode.matching(*resourceURI)
 	if n != nil {
+		n.handler = handler
 		r := q.resources[resourceURI.String()]
 		r.URI = (*ResourceURI)(resourceURI)
 		r.Name = name
 		r.Description = opts.description
 		r.MimeType = opts.mimeType
-		r.handler = f
 		q.resources[resourceURI.String()] = r
 		return
 	}
-	q.resourceNode.addRoute(*resourceURI)
+	q.resourceNode.addRoute(*resourceURI, handler)
 	q.resources[resourceURI.String()] = Resource{
 		URI:         (*ResourceURI)(resourceURI),
 		Name:        name,
 		Description: opts.description,
 		MimeType:    opts.mimeType,
-		handler:     f,
 	}
 }
 
@@ -416,15 +416,13 @@ func (q *Qilin) ResourceChangeObserver(uri string, observer ResourceChangeObserv
 		subscriber: make(map[string]ResourceChangeSubscriber),
 	}
 	if n != nil {
-		r := q.resources[resourceURI.String()]
-		r.resourceChangeCtx = resourceChangeCtx
-		q.resources[resourceURI.String()] = r
+		n.resourceChangeCtx = resourceChangeCtx
 		return
-	}
-	q.resourceNode.addRoute(*resourceURI)
-	q.resources[resourceURI.String()] = Resource{
-		URI:               (*ResourceURI)(resourceURI),
-		resourceChangeCtx: resourceChangeCtx,
+	} else {
+		q.resourceNode.addRoute(*resourceURI, nil)
+		q.resources[resourceURI.String()] = Resource{
+			URI: (*ResourceURI)(resourceURI),
+		}
 	}
 	q.handleResourceChangeObserver(observer, resourceChangeCtx)
 }
@@ -484,8 +482,7 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 				subscriber := value.(*resourceChangeSubscriber)
 				n, _, _ := q.resourceNode.matching(subscriber.SubscribedURI())
 				if n != nil {
-					resource := q.resources[n.key]
-					resource.resourceChangeCtx.unsubscribe(subscriber.id)
+					n.resourceChangeCtx.unsubscribe(subscriber.id)
 				}
 				subscriber.reset()
 				q.resourceChangeSubscriberPool.Put(subscriber)
@@ -509,8 +506,6 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 				return
 			case <-connectionClosed:
 				return
-			default:
-				continue
 			}
 		}
 	}()
@@ -552,10 +547,11 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			c.jsonrpcRequest = req
 			c.dest = &dest
 			c.resources = q.resources
-
 			defer func() {
-				c.reset()
-				q.resourceListContextPool.Put(c)
+				go func() {
+					c.reset()
+					q.resourceListContextPool.Put(c)
+				}()
 			}()
 
 			err := q.resourceListHandler(c)
@@ -570,42 +566,20 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 				ResourceTemplates: slices.Collect(maps.Values(q.resourceTemplates)),
 			}, nil
 		case MethodResourcesRead:
-			var (
-				uri       url.URL
-				route     *resourceNode
-				pathParam map[string]string
-				c         *resourceContext
-				err       error
-			)
+			var params readResourceRequestParams
+			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
+				return nil, jsonrpc2.ErrInvalidParams
+			}
 
-			var wg sync.WaitGroup
-			wg.Add(2)
-			go func() {
-				defer wg.Done()
-				var params readResourceRequestParams
-				if err = q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-					err = jsonrpc2.ErrInvalidParams
-					return
-				}
-				uri = url.URL(*params.URI)
-				route, pathParam, err = q.resourceNode.matching(uri)
-				if err != nil {
-					return
-				}
-			}()
-			go func() {
-				defer wg.Done()
-				c = q.resourceContextPool.Get().(*resourceContext)
-			}()
-			wg.Wait()
+			uri := url.URL(*params.URI)
+			route, pathParam, err := q.resourceNode.matching(uri)
 			if err != nil {
 				return nil, err
 			}
-			resource, ok := q.resources[route.key]
-			if !ok {
-				return nil, fmt.Errorf("resource '%s' not found", route.key)
+			c := q.resourceContextPool.Get().(*resourceContext)
+			if err != nil {
+				return nil, err
 			}
-
 			var dest readResourceResult
 			c.ctx = ctx
 			c.uri = uri
@@ -614,11 +588,13 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			c.dest = &dest
 
 			defer func() {
-				c.reset()
-				q.resourceContextPool.Put(c)
+				go func() {
+					c.reset()
+					q.resourceContextPool.Put(c)
+				}()
 			}()
 
-			err = resource.handler(c)
+			err = route.handler(c)
 			if err != nil {
 				return nil, err
 			}
@@ -634,35 +610,15 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 				Tools: slices.Collect(maps.Values(q.tools)),
 			}, nil
 		case MethodToolsCall:
-			var (
-				params        callToolRequestParams
-				tool          Tool
-				toolAvailable bool
-				c             *toolContext
-				err           error
-			)
-			var wg sync.WaitGroup
-			wg.Add(2)
-			go func() {
-				defer wg.Done()
-				if err = q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-					err = jsonrpc2.ErrInvalidParams
-					return
-				}
-				tool, toolAvailable = q.tools[params.Name]
-				if !toolAvailable {
-					err = jsonrpc2.ErrInvalidParams
-					return
-				}
-			}()
-			go func() {
-				defer wg.Done()
-				c = q.toolContextPool.Get().(*toolContext)
-			}()
-			wg.Wait()
-			if err != nil {
-				return nil, err
+			var params callToolRequestParams
+			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
+				return nil, jsonrpc2.ErrInvalidParams
 			}
+			tool, toolAvailable := q.tools[params.Name]
+			if !toolAvailable {
+				return nil, jsonrpc2.ErrInvalidParams
+			}
+			c := q.toolContextPool.Get().(*toolContext)
 
 			var dest CallToolContent
 
@@ -673,95 +629,54 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			c.dest = &dest
 
 			defer func() {
-				c.reset()
-				q.toolContextPool.Put(c)
+				go func() {
+					c.reset()
+					q.toolContextPool.Put(c)
+				}()
 			}()
 
-			err = tool.handler(c)
-			if err != nil {
+			if err := tool.handler(c); err != nil {
 				return nil, fmt.Errorf(ErrorMessageFailedToHandleTool, params.Name, err)
 			}
 			return dest, nil
 		case MethodResourceSubscribe:
-			var (
-				uri        url.URL
-				n          *resourceNode
-				subscriber *resourceChangeSubscriber
-				err        error
-			)
-
-			var wg sync.WaitGroup
-			wg.Add(2)
-			go func() {
-				defer wg.Done()
-				var params subscribeResourcesRequestParams
-				if err = q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-					err = jsonrpc2.ErrInvalidParams
-					return
-				}
-				uri = url.URL(*params.URI)
-				n, _, err = q.resourceNode.matching(uri)
-			}()
-			go func() {
-				defer wg.Done()
-				subscriber = q.resourceChangeSubscriberPool.Get().(*resourceChangeSubscriber)
-				subscribedResources.Store(uri.String(), subscriber)
-			}()
-
-			wg.Wait()
+			var params subscribeResourcesRequestParams
+			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
+				return nil, jsonrpc2.ErrInvalidParams
+			}
+			uri := url.URL(*params.URI)
+			n, _, err := q.resourceNode.matching(uri)
 			if err != nil {
 				return nil, err
 			}
+
+			subscriber := q.resourceChangeSubscriberPool.Get().(*resourceChangeSubscriber)
+			subscribedResources.Store(uri.String(), subscriber)
 
 			subscriber.ch = resourceUpdateCh
 			subscriber.lastReceived = time.Now()
 			subscriber.id = ulid.Make().String()
 
-			resource := q.resources[n.key]
-			resource.resourceChangeCtx.subscribe(subscriber)
+			n.resourceChangeCtx.subscribe(subscriber)
 			return struct{}{}, nil
 		case MethodResourceUnsubscribe:
-			var (
-				uri        url.URL
-				n          *resourceNode
-				subscriber *resourceChangeSubscriber
-				err        error
-			)
-
-			var wg sync.WaitGroup
-			wg.Add(2)
-			go func() {
-				defer wg.Done()
-				var params unsubscribeResourcesRequestParams
-				if err = q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-					err = jsonrpc2.ErrInvalidParams
-					return
-				}
-				uri = url.URL(*params.URI)
-				n, _, _ = q.resourceNode.matching(uri)
-			}()
-			go func() {
-				defer wg.Done()
-				v, ok := subscribedResources.LoadAndDelete(uri.String())
-				if !ok {
-					return
-				}
-				subscriber = v.(*resourceChangeSubscriber)
-			}()
-
-			wg.Wait()
-
-			var id string
-			if subscriber != nil {
-				id = subscriber.id
-				subscriber.reset()
-				q.resourceChangeSubscriberPool.Put(subscriber)
+			var params unsubscribeResourcesRequestParams
+			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
+				return nil, jsonrpc2.ErrInvalidParams
 			}
-			if n == nil {
+			uri := url.URL(*params.URI)
+			n, _, err := q.resourceNode.matching(uri)
+			if err != nil {
+				return nil, err
+			}
+			v, ok := subscribedResources.LoadAndDelete(uri.String())
+			if !ok {
 				return struct{}{}, nil
 			}
-			resource := q.resources[n.key]
-			resource.resourceChangeCtx.unsubscribe(id)
+			subscriber := v.(*resourceChangeSubscriber)
+			n.resourceChangeCtx.unsubscribe(subscriber.id)
+			subscriber.reset()
+			q.resourceChangeSubscriberPool.Put(subscriber)
 			return struct{}{}, nil
 		default:
 			return nil, jsonrpc2.ErrMethodNotFound
@@ -852,11 +767,13 @@ func (q *Qilin) Start(options ...StartOption) error {
 		q.tools[name] = tool
 	}
 
-	for name, resource := range q.resources {
-		for _, middleware := range q.resourceMiddleware {
-			resource.handler = middleware(resource.handler)
+	for v := range q.resourceNode.flattenIter() {
+		if v.handler != nil {
+			continue
 		}
-		q.resources[name] = resource
+		for _, middleware := range q.resourceMiddleware {
+			v.handler = middleware(v.handler)
+		}
 	}
 	var binder binderFunc = func(ctx context.Context, conn *jsonrpc2.Connection) (jsonrpc2.ConnectionOptions, error) {
 		handler := q.handler(o.ctx, conn.Notify, connectionClosed)
@@ -876,11 +793,18 @@ func (q *Qilin) Start(options ...StartOption) error {
 }
 
 type resourceNode struct {
-	// key is the resource key
-	key string
-
 	// child is the child resource node
 	child *map[string]*resourceNode
+
+	wild bool
+
+	paramName string
+
+	// handler handles reading the resource.
+	handler ResourceHandlerFunc `json:"-"`
+
+	// resourceChangeCtx can be used to subscribe to changes to this resource.
+	resourceChangeCtx ResourceChangeContext `json:"-"`
 }
 
 // matching finds the resource node that matches the given URI and parse the parameters
@@ -901,7 +825,7 @@ func (n *resourceNode) matching(uri url.URL) (*resourceNode, map[string]string, 
 		return nil, nil, fmt.Errorf("host '%s' not found", host)
 	}
 	if len(path) == 0 {
-		if r.key != "" {
+		if r.handler != nil {
 			return r, params, nil
 		}
 		return nil, nil, fmt.Errorf("host '%s' found, but not registered as a resource", path)
@@ -910,10 +834,9 @@ func (n *resourceNode) matching(uri url.URL) (*resourceNode, map[string]string, 
 		child = *r.child
 		r, ok = child[p]
 		if !ok {
-			for k, v := range child {
-				if strings.HasPrefix(k, "{") && strings.HasSuffix(k, "}") {
-					paramsKey := strings.TrimSuffix(strings.TrimPrefix(k, "{"), "}")
-					params[paramsKey] = p
+			for _, v := range child {
+				if v.wild {
+					params[v.paramName] = p
 					r = v
 					break
 				}
@@ -923,14 +846,14 @@ func (n *resourceNode) matching(uri url.URL) (*resourceNode, map[string]string, 
 			}
 		}
 	}
-	if r.key != "" {
+	if r.handler != nil {
 		return r, params, nil
 	}
 	return nil, nil, fmt.Errorf("path '%s' found, but not registered as a resource", path)
 }
 
 // addRoute adds a new route to the resource node
-func (n *resourceNode) addRoute(uri url.URL) {
+func (n *resourceNode) addRoute(uri url.URL, handler ResourceHandlerFunc) {
 	schema := uri.Scheme
 	host := uri.Host
 	path := strings.Split(strings.TrimPrefix(uri.Path, "/"), "/")
@@ -952,7 +875,9 @@ func (n *resourceNode) addRoute(uri url.URL) {
 		child[host] = r
 	}
 	if len(path) == 0 {
-		r.key = uri.String()
+		if handler != nil {
+			r.handler = handler
+		}
 		return
 	}
 
@@ -964,11 +889,34 @@ func (n *resourceNode) addRoute(uri url.URL) {
 			r = &resourceNode{
 				child: resourceNodeChild(),
 			}
+			if strings.HasPrefix(p, "{") && strings.HasSuffix(p, "}") {
+				r.wild = true
+				r.paramName = strings.TrimPrefix(strings.TrimSuffix(p, "}"), "{")
+			}
 			child[p] = r
 		}
 	}
-	r.key = uri.String()
-	child[p] = r
+	if handler != nil {
+		r.handler = handler
+	}
+}
+
+// flattenIter flattens the resource node tree into a sequence of resource nodes
+func (n *resourceNode) flattenIter() iter.Seq[*resourceNode] {
+	return func(yield func(*resourceNode) bool) {
+		if !yield(n) {
+			return
+		}
+		for _, v := range *n.child {
+			if len(*v.child) == 0 {
+				if !yield(v) {
+					return
+				}
+				continue
+			}
+			v.flattenIter()(yield)
+		}
+	}
 }
 
 // resourceNodeChild creates a new resource node child

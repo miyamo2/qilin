@@ -345,12 +345,6 @@ type Resource struct {
 
 	// MimeType of this resource, if known.
 	MimeType string `json:"mimeType,omitzero"`
-
-	// handler handles reading the resource.
-	handler ResourceHandlerFunc `json:"-"`
-
-	// resourceChangeCtx can be used to subscribe to changes to this resource.
-	resourceChangeCtx ResourceChangeContext `json:"-"`
 }
 
 // resourceTemplate a template description for resources available on the server.
