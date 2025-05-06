@@ -51,5 +51,5 @@ func Example() {
 		}
 		return c.JSON(res)
 	})
-	q.Start() // listen and server on stdio
+	q.Start() // listen and serve on stdio
 }

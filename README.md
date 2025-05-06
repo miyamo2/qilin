@@ -4,11 +4,10 @@
 <img align="center" width="500px" src="./.assets/logo.png" alt="logo" />
 
 **Qilin**(麒麟) is a model context protocol framework written in Go.  
-It is designed to be a lightweight and extensible framework for building mcp server that can interact with various models and tools.
 
 > [!WARNING]
 > 
-> Qilin still 🚧WIP🚧
+> **Qilin** still **🚧WIP🚧**
 
 ## Getting Started
 
@@ -77,7 +76,7 @@ func main() {
 		}
 		return c.JSON(res)
 	})
-	q.Start() // listen and server on stdio
+	q.Start() // listen and serve on stdio
 }
 ```
 
@@ -100,5 +99,5 @@ func main() {
     - [X] Middleware
   - [X] Templates
   - [X] List Changed Notification
-  - [X] Subscriptions
+  - [ ] Subscriptions
 - [ ] Prompt
