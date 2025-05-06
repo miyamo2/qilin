@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"weak"
 )
 
 type Context interface {
@@ -84,11 +85,11 @@ type ToolContext interface {
 	// Audio sends audio content
 	Audio(data []byte, mimeType string) error
 	// JSONResource sends embed JSON resource content
-	JSONResource(uri url.URL, i any, mimeType string) error
+	JSONResource(uri *url.URL, i any, mimeType string) error
 	// StringResource sends embed string resource content
-	StringResource(uri url.URL, s string, mimeType string) error
+	StringResource(uri *url.URL, s string, mimeType string) error
 	// BinaryResource sends embed binary resource content
-	BinaryResource(uri url.URL, data []byte, mimeType string) error
+	BinaryResource(uri *url.URL, data []byte, mimeType string) error
 }
 
 var (
@@ -159,7 +160,7 @@ func (c *toolContext) Audio(data []byte, mimeType string) error {
 	return nil
 }
 
-func (c *toolContext) JSONResource(uri url.URL, i any, mimeType string) error {
+func (c *toolContext) JSONResource(uri *url.URL, i any, mimeType string) error {
 	b, err := c.jsonMarshalFunc(i)
 	if err != nil {
 		return err
@@ -170,7 +171,7 @@ func (c *toolContext) JSONResource(uri url.URL, i any, mimeType string) error {
 	*c.dest = &embedResourceCallToolContent{
 		Resource: &textResourceContent{
 			resourceContentBase: resourceContentBase{
-				uri:      uri,
+				uri:      weak.Make(uri),
 				mimeType: mimeType,
 			},
 			text: string(b),
@@ -180,14 +181,14 @@ func (c *toolContext) JSONResource(uri url.URL, i any, mimeType string) error {
 	return nil
 }
 
-func (c *toolContext) StringResource(uri url.URL, s string, mimeType string) error {
+func (c *toolContext) StringResource(uri *url.URL, s string, mimeType string) error {
 	if mimeType == "" {
 		mimeType = "text/plain"
 	}
 	*c.dest = &embedResourceCallToolContent{
 		Resource: &textResourceContent{
 			resourceContentBase: resourceContentBase{
-				uri:      uri,
+				uri:      weak.Make(uri),
 				mimeType: mimeType,
 			},
 			text: s,
@@ -197,7 +198,7 @@ func (c *toolContext) StringResource(uri url.URL, s string, mimeType string) err
 	return nil
 }
 
-func (c *toolContext) BinaryResource(uri url.URL, data []byte, mimeType string) error {
+func (c *toolContext) BinaryResource(uri *url.URL, data []byte, mimeType string) error {
 	enc := base64.StdEncoding.EncodeToString(data)
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
@@ -205,7 +206,7 @@ func (c *toolContext) BinaryResource(uri url.URL, data []byte, mimeType string) 
 	*c.dest = &embedResourceCallToolContent{
 		Resource: &binaryResourceContent{
 			resourceContentBase: resourceContentBase{
-				uri:      uri,
+				uri:      weak.Make(uri),
 				mimeType: mimeType,
 			},
 			blob: enc,
@@ -242,7 +243,7 @@ func newToolContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMar
 type ResourceContext interface {
 	Context
 	// ResourceURI returns the uri of the resource
-	ResourceURI() url.URL
+	ResourceURI() *url.URL
 	// MimeType returns the mime type of the resource
 	MimeType() string
 	// Param retrieves the path parameter by name
@@ -262,14 +263,14 @@ var _ ResourceContext = (*resourceContext)(nil)
 
 type resourceContext struct {
 	_context
-	uri        url.URL
+	uri        weak.Pointer[url.URL]
 	mimeType   string
 	pathParams map[string]string
 	dest       *readResourceResult
 }
 
-func (c *resourceContext) ResourceURI() url.URL {
-	return c.uri
+func (c *resourceContext) ResourceURI() *url.URL {
+	return c.uri.Value()
 }
 
 func (c *resourceContext) MimeType() string {
@@ -335,7 +336,7 @@ func (c *resourceContext) Blob(data []byte, mimeType string) error {
 
 func (c *resourceContext) reset() {
 	c._context.reset()
-	c.uri = url.URL{}
+	c.uri = weak.Pointer[url.URL]{}
 	c.mimeType = ""
 	c.pathParams = nil
 	c.dest = nil
@@ -405,11 +406,11 @@ type ResourceChangeSubscriber interface {
 	// ID returns the unique ID of the subscriber
 	ID() string
 	// SubscribedURI returns the subscribed resource URI
-	SubscribedURI() url.URL
+	SubscribedURI() *url.URL
 	// LastReceived returns the last received time of the subscriber
 	LastReceived() time.Time
 	// Publish publishes the resource change event
-	Publish(uri url.URL)
+	Publish(uri *url.URL)
 }
 
 // compatibility check
@@ -417,9 +418,9 @@ var _ ResourceChangeSubscriber = (*resourceChangeSubscriber)(nil)
 
 type resourceChangeSubscriber struct {
 	id            string
-	subscribedURI url.URL
+	subscribedURI *url.URL
 	lastReceived  time.Time
-	ch            chan url.URL
+	ch            chan *url.URL
 	mu            sync.RWMutex
 }
 
@@ -429,7 +430,7 @@ func (r *resourceChangeSubscriber) ID() string {
 	return r.id
 }
 
-func (r *resourceChangeSubscriber) SubscribedURI() url.URL {
+func (r *resourceChangeSubscriber) SubscribedURI() *url.URL {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.subscribedURI
@@ -441,7 +442,7 @@ func (r *resourceChangeSubscriber) LastReceived() time.Time {
 	return r.lastReceived
 }
 
-func (r *resourceChangeSubscriber) Publish(uri url.URL) {
+func (r *resourceChangeSubscriber) Publish(uri *url.URL) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.lastReceived = time.Now()
@@ -456,7 +457,7 @@ func (r *resourceChangeSubscriber) reset() {
 	if r.ch != nil {
 		close(r.ch)
 	}
-	r.subscribedURI = url.URL{}
+	r.subscribedURI = nil
 	r.ch = nil
 }
 
@@ -466,7 +467,7 @@ type ResourceChangeContext interface {
 	Context() context.Context
 
 	// Publish publishes the resource change event
-	Publish(uri url.URL, modifiedAt time.Time)
+	Publish(uri *url.URL, modifiedAt time.Time)
 	subscribe(subscriber ResourceChangeSubscriber)
 	unsubscribe(id string)
 }
@@ -484,7 +485,7 @@ func (r *resourceChangeContext) Context() context.Context {
 	return r.ctx
 }
 
-func (r *resourceChangeContext) Publish(uri url.URL, modifiedAt time.Time) {
+func (r *resourceChangeContext) Publish(uri *url.URL, modifiedAt time.Time) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, subscriber := range r.subscriber {
@@ -499,7 +500,10 @@ func (r *resourceChangeContext) Publish(uri url.URL, modifiedAt time.Time) {
 }
 
 // uriMatches checks if the uri matches the subscribed URI
-func uriMatches(uri url.URL, subscribedURI url.URL) bool {
+func uriMatches(uri *url.URL, subscribedURI *url.URL) bool {
+	if uri == nil || subscribedURI == nil {
+		return false
+	}
 	if subscribedURI.Scheme != uri.Scheme {
 		return false
 	}

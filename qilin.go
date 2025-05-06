@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"weak"
 )
 
 // Qilin is the top-level framework instance.
@@ -357,7 +358,7 @@ func (q *Qilin) Resource(name, uri string, handler ResourceHandlerFunc, options 
 			MimeType:    opts.mimeType,
 		}
 	}
-	n, _, _ := q.resourceNode.matching(*resourceURI)
+	n, _, _ := q.resourceNode.matching(resourceURI)
 	if n != nil {
 		n.handler = handler
 		r := q.resources[resourceURI.String()]
@@ -368,7 +369,7 @@ func (q *Qilin) Resource(name, uri string, handler ResourceHandlerFunc, options 
 		q.resources[resourceURI.String()] = r
 		return
 	}
-	q.resourceNode.addRoute(*resourceURI, handler)
+	q.resourceNode.addRoute(resourceURI, handler)
 	q.resources[resourceURI.String()] = Resource{
 		URI:         (*ResourceURI)(resourceURI),
 		Name:        name,
@@ -410,7 +411,7 @@ func (q *Qilin) ResourceChangeObserver(uri string, observer ResourceChangeObserv
 		panic(err)
 	}
 
-	n, _, _ := q.resourceNode.matching(*resourceURI)
+	n, _, _ := q.resourceNode.matching(resourceURI)
 	resourceChangeCtx := &resourceChangeContext{
 		ctx:        context.Background(),
 		subscriber: make(map[string]ResourceChangeSubscriber),
@@ -419,7 +420,7 @@ func (q *Qilin) ResourceChangeObserver(uri string, observer ResourceChangeObserv
 		n.resourceChangeCtx = resourceChangeCtx
 		return
 	} else {
-		q.resourceNode.addRoute(*resourceURI, nil)
+		q.resourceNode.addRoute(resourceURI, nil)
 		q.resources[resourceURI.String()] = Resource{
 			URI: (*ResourceURI)(resourceURI),
 		}
@@ -471,7 +472,7 @@ type Notify func(ctx context.Context, method string, params interface{}) error
 func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed <-chan struct{}) jsonrpc2.HandlerFunc {
 	subscribedResources := sync.Map{}
 	listChangeCh := make(chan struct{}, 1)
-	resourceUpdateCh := make(chan url.URL, 1)
+	resourceUpdateCh := make(chan *url.URL, 1)
 	var _resourceListChangeSubscriber *resourceListChangeSubscriber
 
 	go func() {
@@ -499,8 +500,11 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			case <-listChangeCh:
 				notify(rootCtx, MethodNotificationResourcesListChanged, nil)
 			case uri := <-resourceUpdateCh:
+				if uri == nil {
+					continue
+				}
 				notify(rootCtx, MethodNotificationResourceUpdated, resourceUpdatedNotificationParam{
-					URI: (*ResourceURI)(&uri),
+					URI: uri.String(),
 				})
 			case <-rootCtx.Done():
 				return
@@ -548,10 +552,8 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			c.dest = &dest
 			c.resources = q.resources
 			defer func() {
-				go func() {
-					c.reset()
-					q.resourceListContextPool.Put(c)
-				}()
+				c.reset()
+				q.resourceListContextPool.Put(c)
 			}()
 
 			err := q.resourceListHandler(c)
@@ -571,7 +573,7 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 				return nil, jsonrpc2.ErrInvalidParams
 			}
 
-			uri := url.URL(*params.URI)
+			uri := (*url.URL)(params.URI)
 			route, pathParam, err := q.resourceNode.matching(uri)
 			if err != nil {
 				return nil, err
@@ -582,16 +584,14 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			}
 			var dest readResourceResult
 			c.ctx = ctx
-			c.uri = uri
+			c.uri = weak.Make(uri)
 			c.jsonrpcRequest = req
 			c.pathParams = pathParam
 			c.dest = &dest
 
 			defer func() {
-				go func() {
-					c.reset()
-					q.resourceContextPool.Put(c)
-				}()
+				c.reset()
+				q.resourceContextPool.Put(c)
 			}()
 
 			err = route.handler(c)
@@ -629,10 +629,8 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			c.dest = &dest
 
 			defer func() {
-				go func() {
-					c.reset()
-					q.toolContextPool.Put(c)
-				}()
+				c.reset()
+				q.toolContextPool.Put(c)
 			}()
 
 			if err := tool.handler(c); err != nil {
@@ -644,7 +642,7 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
 				return nil, jsonrpc2.ErrInvalidParams
 			}
-			uri := url.URL(*params.URI)
+			uri := (*url.URL)(params.URI)
 			n, _, err := q.resourceNode.matching(uri)
 			if err != nil {
 				return nil, err
@@ -664,7 +662,7 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
 				return nil, jsonrpc2.ErrInvalidParams
 			}
-			uri := url.URL(*params.URI)
+			uri := (*url.URL)(params.URI)
 			n, _, err := q.resourceNode.matching(uri)
 			if err != nil {
 				return nil, err
@@ -808,7 +806,7 @@ type resourceNode struct {
 }
 
 // matching finds the resource node that matches the given URI and parse the parameters
-func (n *resourceNode) matching(uri url.URL) (*resourceNode, map[string]string, error) {
+func (n *resourceNode) matching(uri *url.URL) (*resourceNode, map[string]string, error) {
 	schema := uri.Scheme
 	host := uri.Host
 	path := strings.Split(strings.TrimPrefix(uri.Path, "/"), "/")
@@ -853,7 +851,7 @@ func (n *resourceNode) matching(uri url.URL) (*resourceNode, map[string]string, 
 }
 
 // addRoute adds a new route to the resource node
-func (n *resourceNode) addRoute(uri url.URL, handler ResourceHandlerFunc) {
+func (n *resourceNode) addRoute(uri *url.URL, handler ResourceHandlerFunc) {
 	schema := uri.Scheme
 	host := uri.Host
 	path := strings.Split(strings.TrimPrefix(uri.Path, "/"), "/")

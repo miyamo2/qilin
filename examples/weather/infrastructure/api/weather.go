@@ -86,8 +86,6 @@ func init() {
 				})
 			case <-t2.C:
 				deleteCityWeather("paris")
-			default:
-				continue
 			}
 		}
 	}()

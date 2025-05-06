@@ -173,7 +173,7 @@ func WeatherForecastChangeObserver(c qilin.ResourceChangeContext) {
 			case !v.Equals(previousCityWeather[idx]):
 				city := strings.ReplaceAll(strings.ToLower(v.City), " ", "_")
 				uri, _ := url.Parse(fmt.Sprintf("weather://forecast/%s", city))
-				c.Publish(*uri, t)
+				c.Publish(uri, t)
 			}
 		}
 	}

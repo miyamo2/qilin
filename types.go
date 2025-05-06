@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/invopop/jsonschema"
 	"net/url"
+	"weak"
 )
 
 const (
@@ -242,7 +243,7 @@ func (r ResourceURI) MarshalJSON() ([]byte, error) {
 
 type ResourceContent interface {
 	// GetURI returns the URI of the resource.
-	GetURI() url.URL
+	GetURI() *url.URL
 	// GetMimeType returns the MIME type of the resource.
 	GetMimeType() string
 	json.Marshaler
@@ -251,7 +252,7 @@ type ResourceContent interface {
 // resourceContentBase the contents of a specific resource or sub-resource.
 type resourceContentBase struct {
 	// uri of this resource.
-	uri url.URL
+	uri weak.Pointer[url.URL]
 
 	// MIME type of this resource, if known.
 	mimeType string
@@ -275,14 +276,14 @@ func (t textResourceContent) MarshalJSON() ([]byte, error) {
 		MimeType string `json:"mimeType,omitzero"`
 		Text     string `json:"text,omitzero"`
 	}{
-		URI:      t.uri.String(),
+		URI:      t.uri.Value().String(),
 		MimeType: t.mimeType,
 		Text:     t.text,
 	})
 }
 
-func (t textResourceContent) GetURI() url.URL {
-	return t.uri
+func (t textResourceContent) GetURI() *url.URL {
+	return t.uri.Value()
 }
 
 func (t textResourceContent) GetMimeType() string {
@@ -307,14 +308,14 @@ func (b binaryResourceContent) MarshalJSON() ([]byte, error) {
 		MimeType string `json:"mimeType,omitzero"`
 		Blob     string `json:"blob"`
 	}{
-		URI:      b.uri.String(),
+		URI:      b.uri.Value().String(),
 		MimeType: b.mimeType,
 		Blob:     b.blob,
 	})
 }
 
-func (b binaryResourceContent) GetURI() url.URL {
-	return b.uri
+func (b binaryResourceContent) GetURI() *url.URL {
+	return b.uri.Value()
 }
 
 func (b binaryResourceContent) GetMimeType() string {
@@ -557,5 +558,5 @@ type unsubscribeResourcesRequestParams struct {
 // This should only be sent if the client previously sent a resources/subscribe request.
 type resourceUpdatedNotificationParam struct {
 	// URI of the resource that changed.
-	URI *ResourceURI `json:"uri"`
+	URI string `json:"uri"`
 }
