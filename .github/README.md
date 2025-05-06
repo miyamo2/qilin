@@ -18,10 +18,10 @@
 
 ## ✨ Features
 
-|            &nbsp;             | &nbsp;                                                                                                              |
-|:-----------------------------:|---------------------------------------------------------------------------------------------------------------------|
-|   ⚡ **Zero‑config server**    | `qilin.New().Start()` launches an MCP server on **STDIN/STDOUT**                                                    |
-| 👀 **Familiar look and feel** | Handlers inspired by Go's well-known web application framework. Web application developers will feel right at home. |
+|            &nbsp;             | &nbsp;                                                                                                                 |
+|:-----------------------------:|------------------------------------------------------------------------------------------------------------------------|
+|   ⚡ **Zero‑config server**    | `qilin.New().Start()` launches an MCP server on **STDIN/STDOUT**                                                       |
+| 👀 **Familiar look and feel** | Handlers inspired by Go's well-known web application framework. Developers familiar with them will feel right at home. |
 
 ## 🚀 Quick Start
 
