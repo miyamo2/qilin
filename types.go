@@ -402,7 +402,7 @@ type Tool struct {
 	Annotations *ToolAnnotations `json:"annotations,omitzero"`
 
 	// handler handles invoke the Tool with the provided arguments.
-	handler ToolHandlerFunc `json:"-"`
+	handler ToolHandlerFunc
 }
 
 // ToolAnnotations represents additional properties describing a Tool to clients.

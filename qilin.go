@@ -799,10 +799,10 @@ type resourceNode struct {
 	paramName string
 
 	// handler handles reading the resource.
-	handler ResourceHandlerFunc `json:"-"`
+	handler ResourceHandlerFunc
 
 	// resourceChangeCtx can be used to subscribe to changes to this resource.
-	resourceChangeCtx ResourceChangeContext `json:"-"`
+	resourceChangeCtx ResourceChangeContext
 }
 
 // matching finds the resource node that matches the given URI and parse the parameters
