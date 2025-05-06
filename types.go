@@ -419,33 +419,25 @@ type ToolAnnotations struct {
 	// Title is a human-readable title for the Tool.
 	Title string `json:"title,omitzero"`
 
-	// ReadOnlyHint indicates the Tool does not modify its environment if true
-	//
-	// Default: false
+	// ReadOnlyHint indicates the Tool does not modify its environment if true.
 	ReadOnlyHint bool `json:"readOnlyHint,omitzero"`
 
 	// DestructiveHint indicates whether the Tool may perform destructive updates to its environment if true.
 	// If false, the Tool performs only additive updates.
 	//
 	// (This property is meaningful only when `readOnlyHint == false`)
-	//
-	// Default: true
 	DestructiveHint bool `json:"destructiveHint,omitzero"`
 
 	// IdempotentHint indicates that calling the Tool repeatedly with the same arguments
 	// will have no additional effect on the its environment if true.
 	//
 	// (This property is meaningful only when `readOnlyHint == false`)
-	//
-	// Default: false
 	IdempotentHint bool `json:"idempotentHint,omitzero"`
 
 	// OpenWorldHint indicates this Tool may interact with an "open world" of external entities if true.
 	// If false, the Tool's domain of interaction is closed.
 	// For example, the world of a web search Tool is open, whereas that
 	// of a memory Tool is not.
-	//
-	// Default: true
 	OpenWorldHint bool `json:"openWorldHint,omitzero"`
 }
 
