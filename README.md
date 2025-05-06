@@ -5,6 +5,12 @@
 
 **Qilin**(麒麟) is a model context protocol framework written in Go.  
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/miyamo2/qilin.svg)](https://pkg.go.dev/github.com/miyamo2/qilin)
+[![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/miyamo2/qilin)](https://img.shields.io/github/go-mod/go-version/miyamo2/qilin)
+[![Go Report Card](https://goreportcard.com/badge/github.com/miyamo2/qilin)](https://goreportcard.com/report/github.com/miyamo2/qilin)
+[![GitHub License](https://img.shields.io/github/license/miyamo2/qilin?&color=blue)](https://img.shields.io/github/license/miyamo2/qilin?&color=blue)
+
+
 > [!WARNING]
 > 
 > **Qilin** still **🚧WIP🚧**
