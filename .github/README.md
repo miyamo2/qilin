@@ -25,37 +25,36 @@
 
 ## 🚀 Quick Start
 
-```bash
+```sh
 go get github.com/miyamo2/qilin
 ```
 
-```sh
+```go
 package main
 
 import (
-	"fmt"
-	"github.com/miyamo2/qilin"
+  "github.com/miyamo2/qilin"
 )
 
 type Req struct {
-	X float64 `json:"x" jsonschema:"title=X"`
-	Y float64 `json:"y" jsonschema:"title=Y"`
+  X float64 `json:"x" jsonschema:"title=X"`
+  Y float64 `json:"y" jsonschema:"title=Y"`
 }
 
 type Res struct {
-	Result float64 `json:"result" jsonschema:"title=Result,description=The result of the operation"`
+  Result float64 `json:"result" jsonschema:"title=Result,description=The result of the operation"`
 }
 
 func main() {
-	q := qilin.New("calc")
+  q := qilin.New("calc")
 
-	q.Tool("add", "add y to x", (*Req)(nil), func(c qilin.ToolContext) error {
-		var req Req
-		c.Bind(&req)
-		return c.JSON(Res{Result: req.X + req.Y})
-	})
+  q.Tool("add", "add y to x", (*Req)(nil), func(c qilin.ToolContext) error {
+    var req Req
+    c.Bind(&req)
+    return c.JSON(Res{Result: req.X + req.Y})
+  })
 
-	q.Start() // listens & serves on stdio
+  q.Start() // listens & serves on stdio
 }
 ```
 
