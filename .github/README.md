@@ -16,8 +16,6 @@
   <img alt="Status WIP" src="https://img.shields.io/badge/status-WIP-orange" />
 </h1>
 
----
-
 ## ✨ Features
 
 |            &nbsp;             | &nbsp;                                                                                                              |
