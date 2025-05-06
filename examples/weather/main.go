@@ -9,21 +9,21 @@ func main() {
 	q := qilin.New("weather")
 
 	q.Tool("convert_temperature",
-		"Convert temperature between Celsius and Fahrenheit",
 		(*handler.ToolConvertTemperatureRequest)(nil),
-		handler.ConvertTemperature)
+		handler.ConvertTemperature,
+		qilin.ToolWithDescription("Convert temperature between Celsius and Fahrenheit"))
 
 	q.Tool("calculate_humidity_index",
-		"Calculate humidity index based on temperature and humidity",
 		(*handler.ToolCalculateHumidityIndexRequest)(nil),
-		handler.CalculateHumidityIndex)
+		handler.CalculateHumidityIndex,
+		qilin.ToolWithDescription("Calculate humidity index based on temperature and humidity"))
 
 	q.Resource(
 		"City Weather Forecast",
 		"weather://forecast/{city}",
-		"Weather forecast for a specific city",
 		handler.GetWeatherForecast,
-		qilin.WithResourceMimeType("text/plain"))
+		qilin.ResourceWithDescription("Weather forecast for a specific city"),
+		qilin.ResourceWithMimeType("text/plain"))
 
 	q.ResourceChangeObserver("weather://forecast/{city}", handler.WeatherForecastChangeObserver)
 

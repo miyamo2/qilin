@@ -213,6 +213,7 @@ func New(name string, options ...Option) *Qilin {
 }
 
 type toolOptions struct {
+	description string
 	annotation  ToolAnnotations
 	middlewares []ToolMiddlewareFunc
 }
@@ -220,15 +221,22 @@ type toolOptions struct {
 // ToolOption configures the Tool options.
 type ToolOption func(*toolOptions)
 
-// WithToolAnnotations configures the Tool annotations.
-func WithToolAnnotations(annotations ToolAnnotations) ToolOption {
+// ToolWithDescription configures the Tool description.
+func ToolWithDescription(description string) ToolOption {
+	return func(o *toolOptions) {
+		o.description = description
+	}
+}
+
+// ToolWithAnnotations configures the Tool annotations.
+func ToolWithAnnotations(annotations ToolAnnotations) ToolOption {
 	return func(o *toolOptions) {
 		o.annotation = annotations
 	}
 }
 
-// WithToolMiddleware configures the Tool middleware.
-func WithToolMiddleware(middlewares ...ToolMiddlewareFunc) ToolOption {
+// ToolWithMiddleware configures the Tool middleware.
+func ToolWithMiddleware(middlewares ...ToolMiddlewareFunc) ToolOption {
 	return func(o *toolOptions) {
 		slices.Reverse(middlewares)
 		o.middlewares = slices.Concat(middlewares, o.middlewares)
@@ -238,11 +246,10 @@ func WithToolMiddleware(middlewares ...ToolMiddlewareFunc) ToolOption {
 // Tool registers a new Tool with the given name and description.
 //
 //   - name: the name of the Tool
-//   - description: (optional) the description of the Tool
 //   - req: the request schema for the Tool
 //   - handler: the handler function for the Tool
 //   - options: (optional) the options for the Tool
-func (q *Qilin) Tool(name, description string, req any, handler ToolHandlerFunc, options ...ToolOption) {
+func (q *Qilin) Tool(name string, req any, handler ToolHandlerFunc, options ...ToolOption) {
 	ok := q.startupMutex.TryLock()
 	if !ok {
 		panic(ErrQilinLockingConflicts)
@@ -271,13 +278,14 @@ func (q *Qilin) Tool(name, description string, req any, handler ToolHandlerFunc,
 	schema.Version = ""
 	q.tools[name] = Tool{
 		Name:        name,
-		Description: description,
+		Description: opts.description,
 		InputSchema: schema,
 		handler:     f,
 	}
 }
 
 type resourceOptions struct {
+	description string
 	mimeType    string
 	middlewares []ResourceMiddlewareFunc
 }
@@ -285,15 +293,22 @@ type resourceOptions struct {
 // ResourceOption configures the resource options.
 type ResourceOption func(*resourceOptions)
 
-// WithResourceMimeType configures the resource MIME type.
-func WithResourceMimeType(mimeType string) ResourceOption {
+// ResourceWithDescription configures the resource description.
+func ResourceWithDescription(description string) ResourceOption {
+	return func(o *resourceOptions) {
+		o.description = description
+	}
+}
+
+// ResourceWithMimeType configures the resource MIME type.
+func ResourceWithMimeType(mimeType string) ResourceOption {
 	return func(o *resourceOptions) {
 		o.mimeType = mimeType
 	}
 }
 
-// WithResourceMiddleware configures the resource middleware.
-func WithResourceMiddleware(middlewares ...ResourceMiddlewareFunc) ResourceOption {
+// ResourceWithMiddleware configures the resource middleware.
+func ResourceWithMiddleware(middlewares ...ResourceMiddlewareFunc) ResourceOption {
 	return func(o *resourceOptions) {
 		slices.Reverse(middlewares)
 		o.middlewares = slices.Concat(middlewares, o.middlewares)
@@ -305,10 +320,9 @@ func WithResourceMiddleware(middlewares ...ResourceMiddlewareFunc) ResourceOptio
 //
 //   - name: the name of the resource
 //   - uri: the URI of the resource
-//   - description: (optional) the description of the resource
 //   - handler: the handler function for the resource
 //   - options: (optional) the options for the resource
-func (q *Qilin) Resource(name, uri, description string, handler ResourceHandlerFunc, options ...ResourceOption) {
+func (q *Qilin) Resource(name, uri string, handler ResourceHandlerFunc, options ...ResourceOption) {
 	ok := q.startupMutex.TryLock()
 	if !ok {
 		panic(ErrQilinLockingConflicts)
@@ -338,7 +352,7 @@ func (q *Qilin) Resource(name, uri, description string, handler ResourceHandlerF
 		q.resourceTemplates[resourceURI.Path] = resourceTemplate{
 			URITemplate: (*ResourceURI)(resourceURI),
 			Name:        name,
-			Description: description,
+			Description: opts.description,
 			MimeType:    opts.mimeType,
 		}
 	}
@@ -347,7 +361,7 @@ func (q *Qilin) Resource(name, uri, description string, handler ResourceHandlerF
 		r := q.resources[resourceURI.String()]
 		r.URI = (*ResourceURI)(resourceURI)
 		r.Name = name
-		r.Description = description
+		r.Description = opts.description
 		r.MimeType = opts.mimeType
 		r.handler = f
 		q.resources[resourceURI.String()] = r
@@ -357,7 +371,7 @@ func (q *Qilin) Resource(name, uri, description string, handler ResourceHandlerF
 	q.resources[resourceURI.String()] = Resource{
 		URI:         (*ResourceURI)(resourceURI),
 		Name:        name,
-		Description: description,
+		Description: opts.description,
 		MimeType:    opts.mimeType,
 		handler:     f,
 	}

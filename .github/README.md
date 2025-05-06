@@ -48,11 +48,17 @@ type Res struct {
 func main() {
   q := qilin.New("calc")
 
-  q.Tool("add", "add y to x", (*Req)(nil), func(c qilin.ToolContext) error {
+  q.Tool("add", (*Req)(nil), func(c qilin.ToolContext) error {
     var req Req
     c.Bind(&req)
     return c.JSON(Res{Result: req.X + req.Y})
   })
+
+  q.Tool("sub", (*Req)(nil), func(c qilin.ToolContext) error {
+    var req Req
+    c.Bind(&req)
+    return c.JSON(Res{Result: req.X - req.Y})
+  }, qilin.ToolWithDescription("subtract y from x"))
 
   q.Start() // listens & serves on stdio
 }
