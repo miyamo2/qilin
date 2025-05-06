@@ -1,32 +1,35 @@
-#  Qilin MCP Framework 🌩️🐲🌩️
+<h1 align="center">
+  <picture>
+      <img height="200" alt="Qilin Logo" src="https://raw.githubusercontent.com/miyamo2/qilin/refs/heads/main/.assets/logo.png">
+  </picture>
+  <p>Qilin 🌩️🐲🌩️ – Model Context Protocol Framework for Go</p>
+  <a href="https://pkg.go.dev/github.com/miyamo2/qilin">
+    <img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/miyamo2/qilin.svg" />
+  </a>
+  <img alt="Go Version" src="https://img.shields.io/github/go-mod/go-version/miyamo2/qilin" />
+  <a href="https://goreportcard.com/report/github.com/miyamo2/qilin">
+    <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/miyamo2/qilin" />
+  </a>
+  <a href="https://github.com/miyamo2/qilin/blob/main/LICENSE">
+    <img alt="License MIT" src="https://img.shields.io/github/license/miyamo2/qilin?&color=blue" />
+  </a>
+  <img alt="Status WIP" src="https://img.shields.io/badge/status-WIP-orange" />
+</h1>
 
+---
 
-<img align="center" width="500px" src="./.assets/logo.png" alt="logo" />
+## ✨ Features
 
-**Qilin**(麒麟) is a model context protocol framework written in Go.  
+|            &nbsp;             | &nbsp;                                                                                                              |
+|:-----------------------------:|---------------------------------------------------------------------------------------------------------------------|
+|   ⚡ **Zero‑config server**    | `qilin.New().Start()` launches an MCP server on **STDIN/STDOUT**                                                    |
+| 👀 **Familiar look and feel** | Handlers inspired by Go's well-known web application framework. Web application developers will feel right at home. |
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/miyamo2/qilin.svg)](https://pkg.go.dev/github.com/miyamo2/qilin)
-[![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/miyamo2/qilin)](https://img.shields.io/github/go-mod/go-version/miyamo2/qilin)
-[![Go Report Card](https://goreportcard.com/badge/github.com/miyamo2/qilin)](https://goreportcard.com/report/github.com/miyamo2/qilin)
-[![GitHub License](https://img.shields.io/github/license/miyamo2/qilin?&color=blue)](https://img.shields.io/github/license/miyamo2/qilin?&color=blue)
-
-
-> [!WARNING]
-> 
-> **Qilin** still **🚧WIP🚧**
-
-## Getting Started
-
-### Prerequisites
-
-- Go 1.24+
-
-### Installation
+## 🚀 Quick Start
 
 ```bash
 go get github.com/miyamo2/qilin
 ```
-### Usage
 
 ```sh
 package main
@@ -35,7 +38,7 @@ import (
 	"fmt"
 	"github.com/miyamo2/qilin"
 )
-  
+
 type Req struct {
 	X float64 `json:"x" jsonschema:"title=X"`
 	Y float64 `json:"y" jsonschema:"title=Y"`
@@ -47,53 +50,25 @@ type Res struct {
 
 func main() {
 	q := qilin.New("calc")
+
 	q.Tool("add", "add y to x", (*Req)(nil), func(c qilin.ToolContext) error {
 		var req Req
 		c.Bind(&req)
-		res := Res{
-			Result: req.X + req.Y,
-		}
-		return c.JSON(res)
+		return c.JSON(Res{Result: req.X + req.Y})
 	})
-	q.Tool("sub", "subtract y from x", (*Req)(nil), func(c qilin.ToolContext) error {
-		var req Req
-		c.Bind(&req)
-		res := Res{
-			Result: req.X - req.Y,
-		}
-		return c.JSON(res)
-	})
-	q.Tool("mul", "multiply x by y", (*Req)(nil), func(c qilin.ToolContext) error {
-		var req Req
-		c.Bind(&req)
-		res := Res{
-			Result: req.X * req.Y,
-		}
-		return c.JSON(res)
-	})
-	q.Tool("div", "divide x by y", (*Req)(nil), func(c qilin.ToolContext) error {
-		var req Req
-		c.Bind(&req)
-		if req.Y == 0 {
-			return fmt.Errorf("'Y' must not be 0")
-		}
-		res := Res{
-			Result: req.X / req.Y,
-		}
-		return c.JSON(res)
-	})
-	q.Start() // listen and serve on stdio
+
+	q.Start() // listens & serves on stdio
 }
 ```
 
-### Support
+## 🛤 Roadmap
 
-#### Transports
+### Transports
 
 - [x] Stdio
 - [ ] SSE
 
-#### Features
+### Features
 
 - [x] Tool
   - [X] Listing
@@ -107,3 +82,7 @@ func main() {
   - [X] List Changed Notification
   - [ ] Subscriptions
 - [ ] Prompt
+
+## 📜 License
+
+**Qilin** released under the [MIT License](https://github.com/miyamo2/qilin/blob/main/LICENSE)
