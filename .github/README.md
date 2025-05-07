@@ -42,7 +42,7 @@ type Req struct {
 }
 
 type Res struct {
-  Result float64 `json:"result" jsonschema:"title=Result,description=The result of the operation"`
+  Result float64 `json:"result"`
 }
 
 func main() {
@@ -83,7 +83,7 @@ func main() {
     - [X] Middleware
   - [X] Templates
   - [X] List Changed Notification
-  - [ ] Subscriptions
+  - [X] Subscriptions
 - [ ] Prompt
 
 ## 📜 License

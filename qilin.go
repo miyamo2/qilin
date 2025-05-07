@@ -418,7 +418,6 @@ func (q *Qilin) ResourceChangeObserver(uri string, observer ResourceChangeObserv
 	}
 	if n != nil {
 		n.resourceChangeCtx = resourceChangeCtx
-		return
 	} else {
 		q.resourceNode.addRoute(resourceURI, nil)
 		q.resources[resourceURI.String()] = Resource{
@@ -652,6 +651,7 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			subscribedResources.Store(uri.String(), subscriber)
 
 			subscriber.ch = resourceUpdateCh
+			subscriber.subscribedURI = uri
 			subscriber.lastReceived = time.Now()
 			subscriber.id = ulid.Make().String()
 
@@ -686,9 +686,8 @@ func (q *Qilin) handleResourceChangeObserver(
 	fn ResourceChangeObserverFunc,
 	c ResourceChangeContext,
 ) {
-	ctx := context.WithValue(q.cold, struct{}{}, struct{}{})
 	go func() {
-		<-ctx.Done()
+		<-q.cold.Done()
 		fn(c)
 	}()
 }
@@ -697,9 +696,8 @@ func (q *Qilin) handleResourceListChangeObserver(
 	fn ResourceListChangeObserverFunc,
 	c ResourceListChangeContext,
 ) {
-	ctx := context.WithValue(q.cold, struct{}{}, struct{}{})
 	go func() {
-		<-ctx.Done()
+		<-q.cold.Done()
 		fn(c)
 	}()
 }

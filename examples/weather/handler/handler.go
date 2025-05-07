@@ -7,8 +7,8 @@ import (
 	"github.com/miyamo2/qilin/examples/weather-mcp/domain/repository"
 	"github.com/miyamo2/qilin/examples/weather-mcp/infrastructure/api"
 	"math"
+	"math/rand/v2"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 )
@@ -147,69 +147,33 @@ func ResourceList(c qilin.ResourceListContext) error {
 }
 
 func WeatherForecastChangeObserver(c qilin.ResourceChangeContext) {
-	var (
-		cityWeathers        = make([]CityWeather, 0)
-		previousCityWeather = make([]CityWeather, 0)
-	)
 	for t := range time.Tick(time.Minute) {
 		select {
 		case <-c.Context().Done():
 			return
 		default:
-		}
-
-		var err error
-		previousCityWeather = cityWeathers
-		cityWeathers, err = repo.All()
-		if err != nil {
-			continue
-		}
-		for _, v := range cityWeathers {
-			idx := slices.IndexFunc(previousCityWeather, func(w CityWeather) bool {
-				return w.City == v.City
-			})
-			switch {
-			case idx == -1:
-			case !v.Equals(previousCityWeather[idx]):
-				city := strings.ReplaceAll(strings.ToLower(v.City), " ", "_")
-				uri, _ := url.Parse(fmt.Sprintf("weather://forecast/%s", city))
-				c.Publish(uri, t)
+			// Assume that a random resource has been changed and send a notification.
+			cityWeathers, err := repo.All()
+			if err != nil {
+				continue
 			}
+			idx := rand.N[int](len(cityWeathers))
+			cityWeather := cityWeathers[idx]
+			city := strings.ReplaceAll(strings.ToLower(cityWeather.City), " ", "_")
+			uri, _ := url.Parse(fmt.Sprintf("weather://forecast/%s", city))
+			c.Publish(uri, t)
 		}
 	}
 }
 
 func ResourceListChangeObserver(c qilin.ResourceListChangeContext) {
-	var (
-		cityWeathers        = make([]CityWeather, 0)
-		previousCityWeather = make([]CityWeather, 0)
-	)
-	for t := range time.Tick(time.Minute) {
+	for t := range time.Tick(2 * time.Minute) {
 		select {
 		case <-c.Context().Done():
 			return
 		default:
-		}
-
-		var err error
-		previousCityWeather = cityWeathers
-		cityWeathers, err = repo.All()
-		if err != nil {
-			continue
-		}
-		switch {
-		case len(previousCityWeather) == 0 && len(cityWeathers) == 0:
+			// Assume that a resource list has been changed and send a notification.
 			c.Publish(t)
-		default:
-			for _, v := range cityWeathers {
-				idx := slices.IndexFunc(previousCityWeather, func(w CityWeather) bool {
-					return w.City == v.City
-				})
-				if idx == -1 {
-					c.Publish(time.Now())
-					break
-				}
-			}
 		}
 	}
 }

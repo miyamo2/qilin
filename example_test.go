@@ -10,7 +10,7 @@ type Req struct {
 }
 
 type Res struct {
-	Result float64 `json:"result" jsonschema:"title=Result,description=The result of the operation"`
+	Result float64 `json:"result"`
 }
 
 func Example() {

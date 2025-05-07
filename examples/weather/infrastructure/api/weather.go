@@ -57,57 +57,11 @@ func (w Weather) GetByCity(city string) (*model.CityWeather, error) {
 	return nil, fmt.Errorf("city '%s' not found", city)
 }
 
-func init() {
-	go func() {
-		t1 := time.NewTicker(3 * time.Minute)
-		defer t1.Stop()
-
-		t2 := time.NewTicker(3*time.Minute + 30*time.Second)
-		defer t2.Stop()
-
-		for {
-			select {
-			case <-time.After(2 * time.Minute):
-				storeCityWeather("paris", model.CityWeather{
-					City:        "Paris",
-					Date:        time.Now(),
-					Temperature: float64(rand.N[int](30)),
-					Humidity:    60.0,
-					Condition:   "sunny",
-				})
-			case <-t1.C:
-				storeCityWeather("tokyo", model.CityWeather{
-					City:        "Tokyo",
-					Date:        time.Now(),
-					Temperature: float64(rand.N[int](30)),
-					Humidity:    65.0,
-					Condition:   "sunny",
-					WindSpeed:   3.2,
-				})
-			case <-t2.C:
-				deleteCityWeather("paris")
-			}
-		}
-	}()
-}
-
-func storeCityWeather(city string, weather model.CityWeather) {
-	citiesMutex.Lock()
-	defer citiesMutex.Unlock()
-	cities[city] = weather
-}
-
 func getCityWeather(city string) (model.CityWeather, bool) {
 	citiesMutex.RLock()
 	defer citiesMutex.RUnlock()
 	weather, exists := cities[city]
 	return weather, exists
-}
-
-func deleteCityWeather(city string) {
-	citiesMutex.Lock()
-	defer citiesMutex.Unlock()
-	delete(cities, city)
 }
 
 func allCityWeather() []model.CityWeather {
