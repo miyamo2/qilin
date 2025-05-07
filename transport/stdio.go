@@ -24,6 +24,7 @@ type Stdio struct {
 	ctx       context.Context
 	close     context.CancelFunc
 	writeMu   sync.Mutex
+	acceptMu  sync.Mutex
 }
 
 // Accept implements the jsonrpc2.Listener#Accept
@@ -34,6 +35,7 @@ func (s *Stdio) Accept(ctx context.Context) (io.ReadWriteCloser, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
+		s.acceptMu.Lock()
 		return s, nil
 	}
 }
