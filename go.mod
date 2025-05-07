@@ -18,3 +18,9 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+retract (
+	v0.1.0-beta.3
+	v0.1.0-beta.2
+	v0.1.0-beta.1
+)
