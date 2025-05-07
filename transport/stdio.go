@@ -23,6 +23,7 @@ type Stdio struct {
 	closeOnce sync.Once
 	ctx       context.Context
 	close     context.CancelFunc
+	writeMu   sync.Mutex
 }
 
 // Accept implements the jsonrpc2.Listener#Accept
@@ -54,6 +55,8 @@ func (s *Stdio) Read(p []byte) (n int, err error) {
 
 // Write implements the io.ReadWriteCloser#Write
 func (s *Stdio) Write(p []byte) (n int, err error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
 	return s.out.Write(p)
 }
 
