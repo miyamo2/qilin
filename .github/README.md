@@ -16,12 +16,12 @@
   <img alt="Status WIP" src="https://img.shields.io/badge/status-WIP-orange" />
 </h1>
 
-## ✨ Features
+## 🌟 Highlights
 
 |            &nbsp;             | &nbsp;                                                                                                                 |
 |:-----------------------------:|------------------------------------------------------------------------------------------------------------------------|
 |   ⚡ **Zero‑config server**    | `qilin.New().Start()` launches an MCP server on **STDIN/STDOUT**                                                       |
-| 👀 **Familiar look and feel** | Handlers inspired by Go's well-known web application framework. Developers familiar with them will feel right at home. |
+| 🤝 **Familiar look and feel** | Handlers inspired by Go's well-known web application framework. Developers familiar with them will feel right at home. |
 
 ## 🚀 Quick Start
 
