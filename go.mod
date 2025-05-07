@@ -20,6 +20,7 @@ require (
 )
 
 retract (
+	v0.1.0-beta.4
 	v0.1.0-beta.3
 	v0.1.0-beta.2
 	v0.1.0-beta.1
