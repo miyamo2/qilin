@@ -2,7 +2,6 @@ package qilin
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"golang.org/x/exp/jsonrpc2"
 	"net/url"
@@ -45,6 +44,9 @@ func (c *_context) Set(key any, val any) {
 }
 
 func (c *_context) JSONRPCRequest() jsonrpc2.Request {
+	if c.jsonrpcRequest == nil {
+		return jsonrpc2.Request{}
+	}
 	return *c.jsonrpcRequest
 }
 
@@ -99,11 +101,12 @@ var (
 
 type toolContext struct {
 	_context
-	toolName   string
-	args       json.RawMessage
-	ctx        context.Context
-	annotation *ToolAnnotations
-	dest       *CallToolContent
+	toolName         string
+	args             json.RawMessage
+	ctx              context.Context
+	annotation       *ToolAnnotations
+	dest             *CallToolContent
+	base64StringFunc Base64StringFunc
 }
 
 func (c *toolContext) Arguments() json.RawMessage {
@@ -141,7 +144,7 @@ func (c *toolContext) JSON(i any) error {
 }
 
 func (c *toolContext) Image(data []byte, mimeType string) error {
-	enc := base64.StdEncoding.EncodeToString(data)
+	enc := c.base64StringFunc(data)
 	*c.dest = &imageCallToolContent{
 		Data:     enc,
 		MimeType: mimeType,
@@ -151,7 +154,7 @@ func (c *toolContext) Image(data []byte, mimeType string) error {
 }
 
 func (c *toolContext) Audio(data []byte, mimeType string) error {
-	enc := base64.StdEncoding.EncodeToString(data)
+	enc := c.base64StringFunc(data)
 	*c.dest = &audioCallToolContent{
 		Data:     enc,
 		MimeType: mimeType,
@@ -199,7 +202,7 @@ func (c *toolContext) StringResource(uri *url.URL, s string, mimeType string) er
 }
 
 func (c *toolContext) BinaryResource(uri *url.URL, data []byte, mimeType string) error {
-	enc := base64.StdEncoding.EncodeToString(data)
+	enc := c.base64StringFunc(data)
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
@@ -230,12 +233,13 @@ func (c *toolContext) reset() {
 }
 
 // newToolContext creates a new Tool context
-func newToolContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMarshalFunc) *toolContext {
+func newToolContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMarshalFunc, base64StringFunc Base64StringFunc) *toolContext {
 	return &toolContext{
 		_context: _context{
 			jsonUnmarshalFunc: jsonUnmarshalFunc,
 			jsonMarshalFunc:   jsonMarshalFunc,
 		},
+		base64StringFunc: base64StringFunc,
 	}
 }
 
@@ -263,10 +267,11 @@ var _ ResourceContext = (*resourceContext)(nil)
 
 type resourceContext struct {
 	_context
-	uri        weak.Pointer[url.URL]
-	mimeType   string
-	pathParams map[string]string
-	dest       *readResourceResult
+	uri              weak.Pointer[url.URL]
+	mimeType         string
+	pathParams       map[string]string
+	dest             *readResourceResult
+	base64StringFunc Base64StringFunc
 }
 
 func (c *resourceContext) ResourceURI() *url.URL {
@@ -282,10 +287,14 @@ func (c *resourceContext) Param(name string) string {
 }
 
 func (c *resourceContext) String(s string) error {
+	mimeType := c.mimeType
+	if mimeType == "" {
+		mimeType = "text/plain"
+	}
 	c.dest.Contents = append(c.dest.Contents, textResourceContent{
 		resourceContentBase: resourceContentBase{
 			uri:      c.uri,
-			mimeType: "text/plain",
+			mimeType: mimeType,
 		},
 		text:    s,
 		marshal: c.jsonMarshalFunc,
@@ -314,14 +323,14 @@ func (c *resourceContext) JSON(i any) error {
 }
 
 func (c *resourceContext) Blob(data []byte, mimeType string) error {
-	enc := base64.StdEncoding.EncodeToString(data)
-	switch {
-	case mimeType != "":
-		// do nothing
-	case c.mimeType != "":
-		mimeType = c.mimeType
-	default:
-		mimeType = "application/octet-stream"
+	enc := c.base64StringFunc(data)
+	if mimeType == "" {
+		switch {
+		case c.mimeType != "":
+			mimeType = c.mimeType
+		default:
+			mimeType = "application/octet-stream"
+		}
 	}
 	c.dest.Contents = append(c.dest.Contents, binaryResourceContent{
 		resourceContentBase: resourceContentBase{
@@ -343,12 +352,13 @@ func (c *resourceContext) reset() {
 }
 
 // newResourceContext creates a new resource context
-func newResourceContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMarshalFunc) *resourceContext {
+func newResourceContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMarshalFunc, base64StringFunc Base64StringFunc) *resourceContext {
 	return &resourceContext{
 		_context: _context{
 			jsonUnmarshalFunc: jsonUnmarshalFunc,
 			jsonMarshalFunc:   jsonMarshalFunc,
 		},
+		base64StringFunc: base64StringFunc,
 	}
 }
 
@@ -422,6 +432,7 @@ type resourceChangeSubscriber struct {
 	lastReceived  time.Time
 	ch            chan *url.URL
 	mu            sync.RWMutex
+	nowFunc       func() time.Time
 }
 
 func (r *resourceChangeSubscriber) ID() string {
@@ -445,7 +456,7 @@ func (r *resourceChangeSubscriber) LastReceived() time.Time {
 func (r *resourceChangeSubscriber) Publish(uri *url.URL) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.lastReceived = time.Now()
+	r.lastReceived = r.nowFunc()
 	r.ch <- uri
 }
 
@@ -559,6 +570,7 @@ type resourceListChangeSubscriber struct {
 	lastReceived time.Time
 	ch           chan struct{}
 	mu           sync.RWMutex
+	nowFunc      func() time.Time
 }
 
 func (r *resourceListChangeSubscriber) ID() string {
@@ -576,7 +588,7 @@ func (r *resourceListChangeSubscriber) LastReceived() time.Time {
 func (r *resourceListChangeSubscriber) Publish() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.lastReceived = time.Now()
+	r.lastReceived = r.nowFunc()
 	r.ch <- struct{}{}
 }
 

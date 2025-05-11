@@ -2,6 +2,7 @@ package qilin
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"github.com/goccy/go-json"
 	"github.com/invopop/jsonschema"
@@ -40,6 +41,9 @@ type Qilin struct {
 
 	// jsonMarshalFunc is the function to marshal JSON data
 	jsonMarshalFunc JSONMarshalFunc
+
+	// base64StringFunc is the function to encode binary data to a base64 string
+	base64StringFunc Base64StringFunc
 
 	// toolMiddleware is the list of toolMiddleware functions to be applied to each Tool handler
 	toolMiddleware []ToolMiddlewareFunc
@@ -117,6 +121,9 @@ type JSONUnmarshalFunc func(data []byte, v any) error
 // JSONMarshalFunc defines a function to marshal JSON data.
 type JSONMarshalFunc func(v any) ([]byte, error)
 
+// Base64StringFunc defines a function to encode binary data to a base64 string.
+type Base64StringFunc func(data []byte) string
+
 // Option configures the Qilin instance.
 type Option func(*Qilin)
 
@@ -149,6 +156,7 @@ func New(name string, options ...Option) *Qilin {
 		tools:             make(map[string]Tool),
 		jsonMarshalFunc:   json.Marshal,
 		jsonUnmarshalFunc: json.Unmarshal,
+		base64StringFunc:  base64.StdEncoding.EncodeToString,
 		resources:         make(map[string]Resource),
 		resourceTemplates: make(map[string]resourceTemplate),
 		resourceNode: resourceNode{
@@ -184,12 +192,12 @@ func New(name string, options ...Option) *Qilin {
 	}
 	q.toolContextPool = sync.Pool{
 		New: func() any {
-			return newToolContext(q.jsonUnmarshalFunc, q.jsonMarshalFunc)
+			return newToolContext(q.jsonUnmarshalFunc, q.jsonMarshalFunc, q.base64StringFunc)
 		},
 	}
 	q.resourceContextPool = sync.Pool{
 		New: func() any {
-			return newResourceContext(q.jsonUnmarshalFunc, q.jsonMarshalFunc)
+			return newResourceContext(q.jsonUnmarshalFunc, q.jsonMarshalFunc, q.base64StringFunc)
 		},
 	}
 	q.resourceListContextPool = sync.Pool{
@@ -200,14 +208,14 @@ func New(name string, options ...Option) *Qilin {
 	q.resourceChangeSubscriberPool = sync.Pool{
 		New: func() any {
 			return &resourceChangeSubscriber{
-				mu: sync.RWMutex{},
+				nowFunc: time.Now,
 			}
 		},
 	}
 	q.resourceListChangeSubscriberPool = sync.Pool{
 		New: func() any {
 			return &resourceListChangeSubscriber{
-				mu: sync.RWMutex{},
+				nowFunc: time.Now,
 			}
 		},
 	}
@@ -369,7 +377,7 @@ func (q *Qilin) Resource(name, uri string, handler ResourceHandlerFunc, options 
 		q.resources[resourceURI.String()] = r
 		return
 	}
-	q.resourceNode.addRoute(resourceURI, handler)
+	q.resourceNode.addRoute(resourceURI, handler, opts.mimeType)
 	q.resources[resourceURI.String()] = Resource{
 		URI:         (*ResourceURI)(resourceURI),
 		Name:        name,
@@ -419,7 +427,7 @@ func (q *Qilin) ResourceChangeObserver(uri string, observer ResourceChangeObserv
 	if n != nil {
 		n.resourceChangeCtx = resourceChangeCtx
 	} else {
-		q.resourceNode.addRoute(resourceURI, nil)
+		q.resourceNode.addRoute(resourceURI, nil, "")
 		q.resources[resourceURI.String()] = Resource{
 			URI: (*ResourceURI)(resourceURI),
 		}
@@ -587,6 +595,7 @@ func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed
 			c.jsonrpcRequest = req
 			c.pathParams = pathParam
 			c.dest = &dest
+			c.mimeType = route.mimeType
 
 			defer func() {
 				c.reset()
@@ -796,6 +805,8 @@ type resourceNode struct {
 
 	paramName string
 
+	mimeType string
+
 	// handler handles reading the resource.
 	handler ResourceHandlerFunc
 
@@ -849,7 +860,7 @@ func (n *resourceNode) matching(uri *url.URL) (*resourceNode, map[string]string,
 }
 
 // addRoute adds a new route to the resource node
-func (n *resourceNode) addRoute(uri *url.URL, handler ResourceHandlerFunc) {
+func (n *resourceNode) addRoute(uri *url.URL, handler ResourceHandlerFunc, mimeType string) {
 	schema := uri.Scheme
 	host := uri.Host
 	path := strings.Split(strings.TrimPrefix(uri.Path, "/"), "/")
@@ -894,6 +905,9 @@ func (n *resourceNode) addRoute(uri *url.URL, handler ResourceHandlerFunc) {
 	}
 	if handler != nil {
 		r.handler = handler
+	}
+	if mimeType != "" {
+		r.mimeType = mimeType
 	}
 }
 
