@@ -14,6 +14,9 @@
     <img alt="License MIT" src="https://img.shields.io/github/license/miyamo2/qilin?&color=blue" />
   </a>
   <img alt="Status WIP" src="https://img.shields.io/badge/status-WIP-orange" />
+  <a href="https://deepwiki.com/miyamo2/qilin">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+  </a>
 </h1>
 
 ## 🌟 Highlights
