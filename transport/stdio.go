@@ -3,10 +3,12 @@ package transport
 import (
 	"bytes"
 	"context"
+	internaltransport "github.com/miyamo2/qilin/internal/transport"
 	"golang.org/x/exp/jsonrpc2"
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 // compatibility check
@@ -14,35 +16,41 @@ var (
 	_ jsonrpc2.Listener  = (*Stdio)(nil)
 	_ jsonrpc2.Dialer    = (*Stdio)(nil)
 	_ io.ReadWriteCloser = (*Stdio)(nil)
+	_ SessionIDHolder    = (*Stdio)(nil)
 )
 
 // Stdio implements the jsonrpc2.Listener, jsonrpc2.Dialer and io.ReadWriteCloser
 type Stdio struct {
-	in        io.ReadCloser
-	out       io.WriteCloser
-	closeOnce sync.Once
-	ctx       context.Context
-	close     context.CancelFunc
-	writeMu   sync.Mutex
-	acceptMu  sync.Mutex
+	_           struct{}
+	in          io.ReadCloser
+	out         io.WriteCloser
+	closeOnce   sync.Once
+	ctx         context.Context
+	cancel      context.CancelFunc
+	writeMu     sync.Mutex
+	acceptMu    sync.Mutex
+	closed      atomic.Bool
+	sessionID   string
+	sessionIDMu sync.RWMutex
 }
 
 // Accept implements the jsonrpc2.Listener#Accept
 func (s *Stdio) Accept(ctx context.Context) (io.ReadWriteCloser, error) {
 	select {
 	case <-s.ctx.Done():
+		s.Close()
 		return nil, io.EOF
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
 		s.acceptMu.Lock()
-		return s, nil
+		return internaltransport.NewQilinIO(s), nil
 	}
 }
 
 // Dial implements the jsonrpc2.Dialer#Dial
 func (s *Stdio) Dial(_ context.Context) (io.ReadWriteCloser, error) {
-	return s, nil
+	return internaltransport.NewQilinIO(s), nil
 }
 
 // Dialer implements the jsonrpc2.Listener#Dialer
@@ -66,6 +74,8 @@ func (s *Stdio) Write(p []byte) (n int, err error) {
 func (s *Stdio) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
+		s.cancel()
+		s.closed.Store(true)
 		err = s.in.Close()
 		if err != nil {
 			return
@@ -74,10 +84,31 @@ func (s *Stdio) Close() error {
 		if err != nil {
 			return
 		}
-		s.close()
 		err = s.ctx.Err()
 	})
 	return err
+}
+
+// SessionID See: SessionIDHolder#SessionID
+func (s *Stdio) SessionID() string {
+	s.sessionIDMu.RLock()
+	defer s.sessionIDMu.RUnlock()
+	return s.sessionID
+}
+
+// SetSessionID See: SessionIDHolder#SetSessionID
+func (s *Stdio) SetSessionID(sessionID string) {
+	s.sessionIDMu.Lock()
+	defer s.sessionIDMu.Unlock()
+	if s.sessionID == "" {
+		s.sessionID = sessionID
+	}
+}
+
+// Context returns the context of the Stdio listener.
+func (s *Stdio) Context() context.Context {
+	ctx := context.WithValue(s.ctx, struct{}{}, struct{}{})
+	return ctx
 }
 
 type stdioOptions struct{}
@@ -86,13 +117,18 @@ type stdioOptions struct{}
 type StdioOption func(*stdioOptions)
 
 // NewStdio returns a new Stdio listener.
-func NewStdio(ctx context.Context, close context.CancelFunc, options ...StdioOption) *Stdio {
-	return &Stdio{
-		in:    os.Stdin,
-		out:   os.Stdout,
-		ctx:   ctx,
-		close: close,
+func NewStdio(ctx context.Context, options ...StdioOption) *Stdio {
+	ctx, cancel := context.WithCancel(ctx)
+	s := &Stdio{
+		in:     os.Stdin,
+		out:    os.Stdout,
+		ctx:    ctx,
+		cancel: cancel,
 	}
+	context.AfterFunc(ctx, func() {
+		s.Close()
+	})
+	return s
 }
 
 // compatibility check
@@ -131,7 +167,7 @@ var (
 )
 
 // Write See: jsonrpc2.Writer#Write
-func (s stdioWriter) Write(ctx context.Context, message jsonrpc2.Message) (int64, error) {
+func (s *stdioWriter) Write(ctx context.Context, message jsonrpc2.Message) (int64, error) {
 	var buf bytes.Buffer
 	if _, err := s.writerFunc(&buf).Write(ctx, message); err != nil {
 		return 0, err

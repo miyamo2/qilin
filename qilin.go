@@ -3,15 +3,18 @@ package qilin
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/goccy/go-json"
 	"github.com/invopop/jsonschema"
+	internaltransport "github.com/miyamo2/qilin/internal/transport"
 	"github.com/miyamo2/qilin/transport"
-	"github.com/oklog/ulid/v2"
 	"golang.org/x/exp/jsonrpc2"
 	"iter"
+	"log/slog"
 	"maps"
 	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -30,11 +33,11 @@ type Qilin struct {
 	// startupMutex is mutex to lock Qilin instance access during server configuration and startup.
 	startupMutex sync.RWMutex
 
-	// cold indicates the server is in cold state. cancelled when the server starts up.
+	// cold indicates the server is in a cold state. canceled when the server starts up.
 	cold context.Context
 
-	// uncold is the cancel function to be called when the server starts up.
-	uncold context.CancelFunc
+	// warming is the cancel function to be called when the server starts up.
+	warming context.CancelFunc
 
 	// jsonUnmarshalFunc is the function to unmarshal JSON data
 	jsonUnmarshalFunc JSONUnmarshalFunc
@@ -83,8 +86,49 @@ type Qilin struct {
 
 	resourceListChangeCtx *resourceListChangeContext
 
+	// handlerPool pools handler
+	handlerPool sync.Pool
+
 	// capabilities is the map of capabilities
 	capabilities ServerCapabilities
+
+	// resourcesSubscriptionManager manage subscription status
+	resourcesSubscriptionManager ResourcesSubscriptionManager
+
+	// resourceSubscriptionOptions is the options for resource subscription
+	resourcesSubscriptionOptions resourcesSubscriptionOptions
+
+	// resourceListChangeSubscriptionOptions is the options for resource list subscription
+	resourceListChangeSubscriptionOptions resourceListChangeSubscriptionOptions
+
+	// resourceListChangeSubscriptionManager manage resource list subscription status
+	resourceListChangeSubscriptionManager ResourceListChangeSubscriptionManager
+
+	// sessionManagerOptions is the options for session management
+	sessionManagerOptions sessionManagerOptions
+
+	// sessionManager manage session
+	sessionManager SessionManager
+
+	// nowFunc is the function to get the current time
+	nowFunc NowFunc
+}
+
+// resourcesSubscriptionOptions is the options for resource subscription.
+type resourcesSubscriptionOptions struct {
+	healthCheckInterval time.Duration
+	store               ResourceModificationSubscriptionStore
+}
+
+// resourceListChangeSubscriptionOptions is the options for resource list subscription.
+type resourceListChangeSubscriptionOptions struct {
+	healthCheckInterval time.Duration
+	store               ResourceListChangeSubscriptionStore
+}
+
+// sessionManagerOptions is the options for session management.
+type sessionManagerOptions struct {
+	store SessionStore
 }
 
 // ToolMiddlewareFunc defines a function to process Tool middleware.
@@ -101,6 +145,20 @@ type ResourceMiddlewareFunc func(next ResourceHandlerFunc) ResourceHandlerFunc
 
 // ResourceListHandlerFunc defines a function to serve resource list requests.
 type ResourceListHandlerFunc func(c ResourceListContext) error
+
+// DefaultResourceListHandler is the default resource list handler.
+func DefaultResourceListHandler(c ResourceListContext) error {
+	for k, v := range c.Resources() {
+		paths := strings.Split(v.URI.Path, "/")
+		if slices.ContainsFunc(paths, func(s string) bool {
+			return strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")
+		}) {
+			continue
+		}
+		c.SetResource(k, v)
+	}
+	return nil
+}
 
 // ResourceListMiddlewareFunc defines a function to process resource list middleware.
 type ResourceListMiddlewareFunc func(next ResourceListHandlerFunc) ResourceListHandlerFunc
@@ -123,6 +181,9 @@ type JSONMarshalFunc func(v any) ([]byte, error)
 
 // Base64StringFunc defines a function to encode binary data to a base64 string.
 type Base64StringFunc func(data []byte) string
+
+// NowFunc defines a function to get the current time.
+type NowFunc func() time.Time
 
 // Option configures the Qilin instance.
 type Option func(*Qilin)
@@ -147,9 +208,51 @@ func WithJSONMarshalFunc(f JSONMarshalFunc) Option {
 	}
 }
 
+// WithNowFunc sets the function to get the current time.
+func WithNowFunc(f NowFunc) Option {
+	return func(q *Qilin) {
+		q.nowFunc = f
+	}
+}
+
+// WithResourceSubscriptionHealthCheckInterval sets the health check interval for the resource subscription.
+func WithResourceSubscriptionHealthCheckInterval(interval time.Duration) Option {
+	return func(q *Qilin) {
+		q.resourcesSubscriptionOptions.healthCheckInterval = interval
+	}
+}
+
+// WithResourceListChangeSubscriptionHealthCheckInterval sets the health check interval for the resource list subscription.
+func WithResourceListChangeSubscriptionHealthCheckInterval(interval time.Duration) Option {
+	return func(q *Qilin) {
+		q.resourceListChangeSubscriptionOptions.healthCheckInterval = interval
+	}
+}
+
+// WithResourcesListChangeSubscriptionStore sets the ResourceListChangeSubscriptionStore to the Qilin instance.
+func WithResourcesListChangeSubscriptionStore(store ResourceListChangeSubscriptionStore) Option {
+	return func(q *Qilin) {
+		q.resourceListChangeSubscriptionOptions.store = store
+	}
+}
+
+// WithResourcesSubscriptionStore sets the ResourceModificationSubscriptionStore to the Qilin instance.
+func WithResourcesSubscriptionStore(store ResourceModificationSubscriptionStore) Option {
+	return func(q *Qilin) {
+		q.resourcesSubscriptionOptions.store = store
+	}
+}
+
+// WithSessionStore sets the SessionStore to the Qilin instance.
+func WithSessionStore(store SessionStore) Option {
+	return func(q *Qilin) {
+		q.sessionManagerOptions.store = store
+	}
+}
+
 // New creates a new Qilin instance.
 func New(name string, options ...Option) *Qilin {
-	cold, uncold := context.WithCancel(context.Background())
+	cold, warming := context.WithCancel(context.Background())
 	q := &Qilin{
 		name:              name,
 		version:           "1.0.0",
@@ -166,8 +269,18 @@ func New(name string, options ...Option) *Qilin {
 			ctx:        context.Background(),
 			subscriber: make(map[string]ResourceListChangeSubscriber),
 		},
-		cold:   cold,
-		uncold: uncold,
+		cold:    cold,
+		warming: warming,
+		nowFunc: time.Now,
+		resourceListChangeSubscriptionOptions: resourceListChangeSubscriptionOptions{
+			healthCheckInterval: time.Minute,
+		},
+		resourcesSubscriptionOptions: resourcesSubscriptionOptions{
+			healthCheckInterval: time.Minute,
+		},
+		sessionManagerOptions: sessionManagerOptions{
+			store: &InMemorySessionStore{},
+		},
 	}
 	ok := q.startupMutex.TryLock()
 	if !ok {
@@ -175,18 +288,8 @@ func New(name string, options ...Option) *Qilin {
 	}
 	defer q.startupMutex.Unlock()
 
-	q.resourceListHandler = func(c ResourceListContext) error {
-		for k, v := range q.resources {
-			paths := strings.Split(v.URI.Path, "/")
-			if slices.ContainsFunc(paths, func(s string) bool {
-				return strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")
-			}) {
-				continue
-			}
-			c.SetResource(k, v)
-		}
-		return nil
-	}
+	q.resourceListHandler = DefaultResourceListHandler
+
 	for _, opt := range options {
 		opt(q)
 	}
@@ -208,16 +311,43 @@ func New(name string, options ...Option) *Qilin {
 	q.resourceChangeSubscriberPool = sync.Pool{
 		New: func() any {
 			return &resourceChangeSubscriber{
-				nowFunc: time.Now,
+				nowFunc: q.nowFunc,
 			}
 		},
 	}
 	q.resourceListChangeSubscriberPool = sync.Pool{
 		New: func() any {
 			return &resourceListChangeSubscriber{
-				nowFunc: time.Now,
+				nowFunc: q.nowFunc,
 			}
 		},
+	}
+	q.sessionManager = &sessionManager{
+		store: q.sessionManagerOptions.store,
+	}
+	if q.resourceListChangeSubscriptionOptions.store == nil {
+		q.resourceListChangeSubscriptionOptions.store = &InMemoryResourceListChangeSubscriptionStore{
+			subscriptions:              sync.Map{},
+			nowFunc:                    q.nowFunc,
+			subscriptionHealthInterval: q.resourceListChangeSubscriptionOptions.healthCheckInterval,
+		}
+	}
+	q.resourceListChangeSubscriptionManager = &resourceListChangeSubscriptionManager{
+		nowFunc:                    q.nowFunc,
+		subscriptionHealthInterval: q.resourceListChangeSubscriptionOptions.healthCheckInterval,
+		store:                      q.resourceListChangeSubscriptionOptions.store,
+	}
+	if q.resourcesSubscriptionOptions.store == nil {
+		q.resourcesSubscriptionOptions.store = &InMemoryResourceModificationSubscriptionStore{
+			subscriptions:              sync.Map{},
+			nowFunc:                    q.nowFunc,
+			subscriptionHealthInterval: q.resourcesSubscriptionOptions.healthCheckInterval,
+		}
+	}
+	q.resourcesSubscriptionManager = &resourcesSubscribeManager{
+		nowFunc:                    q.nowFunc,
+		subscriptionHealthInterval: q.resourcesSubscriptionOptions.healthCheckInterval,
+		store:                      q.resourcesSubscriptionOptions.store,
 	}
 	return q
 }
@@ -473,224 +603,6 @@ func (q *Qilin) UseInResources(middleware ...ResourceMiddlewareFunc) {
 	q.resourceMiddleware = slices.Concat(middleware, q.resourceMiddleware)
 }
 
-type Notify func(ctx context.Context, method string, params interface{}) error
-
-// handler returns jsonrpc2.HandlerFunc
-func (q *Qilin) handler(rootCtx context.Context, notify Notify, connectionClosed <-chan struct{}) jsonrpc2.HandlerFunc {
-	subscribedResources := sync.Map{}
-	listChangeCh := make(chan struct{}, 1)
-	resourceUpdateCh := make(chan *url.URL, 1)
-	var _resourceListChangeSubscriber *resourceListChangeSubscriber
-
-	go func() {
-		defer close(listChangeCh)
-		defer close(resourceUpdateCh)
-		defer func() {
-			subscribedResources.Range(func(key, value interface{}) bool {
-				subscriber := value.(*resourceChangeSubscriber)
-				n, _, _ := q.resourceNode.matching(subscriber.SubscribedURI())
-				if n != nil {
-					n.resourceChangeCtx.unsubscribe(subscriber.id)
-				}
-				subscriber.reset()
-				q.resourceChangeSubscriberPool.Put(subscriber)
-				return true
-			})
-			if _resourceListChangeSubscriber != nil {
-				q.resourceListChangeCtx.unsubscribe(_resourceListChangeSubscriber.id)
-				_resourceListChangeSubscriber.reset()
-				q.resourceListChangeSubscriberPool.Put(_resourceListChangeSubscriber)
-			}
-		}()
-		for {
-			select {
-			case <-listChangeCh:
-				notify(rootCtx, MethodNotificationResourcesListChanged, nil)
-			case uri := <-resourceUpdateCh:
-				if uri == nil {
-					continue
-				}
-				notify(rootCtx, MethodNotificationResourceUpdated, resourceUpdatedNotificationParam{
-					URI: uri.String(),
-				})
-			case <-rootCtx.Done():
-				return
-			case <-connectionClosed:
-				return
-			}
-		}
-	}()
-	return func(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
-		switch req.Method {
-		case MethodInitialize:
-			var params initializeRequestParams
-			if err := json.Unmarshal(req.Params, &params); err != nil {
-				return nil, jsonrpc2.ErrInvalidParams
-			}
-			protocolVersion := params.ProtocolVersion
-			if support := SupportedProtocolVersions[protocolVersion]; !support {
-				protocolVersion = LatestProtocolVersion
-			}
-			if q.capabilities.Resources != nil {
-				if q.capabilities.Resources.ListChanged {
-					_resourceListChangeSubscriber = q.resourceListChangeSubscriberPool.Get().(*resourceListChangeSubscriber)
-					_resourceListChangeSubscriber.id = ulid.Make().String()
-					_resourceListChangeSubscriber.ch = listChangeCh
-					_resourceListChangeSubscriber.lastReceived = time.Now()
-					q.resourceListChangeCtx.subscribe(_resourceListChangeSubscriber)
-				}
-			}
-			return &initializeResult{
-				ProtocolVersion: protocolVersion,
-				Capabilities:    q.capabilities,
-				ServerInfo: implementation{
-					Name:    q.name,
-					Version: q.version,
-				},
-			}, nil
-		case MethodPing:
-			return struct{}{}, nil
-		case MethodResourcesList:
-			dest := make(map[string]Resource)
-			c := q.resourceListContextPool.Get().(*resourceListContext)
-
-			c.ctx = ctx
-			c.jsonrpcRequest = req
-			c.dest = &dest
-			c.resources = q.resources
-			defer func() {
-				c.reset()
-				q.resourceListContextPool.Put(c)
-			}()
-
-			err := q.resourceListHandler(c)
-			if err != nil {
-				return nil, err
-			}
-			return &listResourcesResult{
-				Resources: slices.Collect(maps.Values(dest)),
-			}, nil
-		case MethodResourcesTemplatesList:
-			return &listResourceTemplatesResult{
-				ResourceTemplates: slices.Collect(maps.Values(q.resourceTemplates)),
-			}, nil
-		case MethodResourcesRead:
-			var params readResourceRequestParams
-			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-				return nil, jsonrpc2.ErrInvalidParams
-			}
-
-			uri := (*url.URL)(params.URI)
-			route, pathParam, err := q.resourceNode.matching(uri)
-			if err != nil {
-				return nil, err
-			}
-			c := q.resourceContextPool.Get().(*resourceContext)
-			if err != nil {
-				return nil, err
-			}
-			var dest readResourceResult
-			c.ctx = ctx
-			c.uri = weak.Make(uri)
-			c.jsonrpcRequest = req
-			c.pathParams = pathParam
-			c.dest = &dest
-			c.mimeType = route.mimeType
-
-			defer func() {
-				c.reset()
-				q.resourceContextPool.Put(c)
-			}()
-
-			err = route.handler(c)
-			if err != nil {
-				return nil, err
-			}
-			return &dest, nil
-		case MethodPromptsList:
-			// not yet implemented
-			return nil, jsonrpc2.ErrNotHandled
-		case MethodPromptsGet:
-			// not yet implemented
-			return nil, jsonrpc2.ErrNotHandled
-		case MethodToolsList:
-			return &listToolsResponse{
-				Tools: slices.Collect(maps.Values(q.tools)),
-			}, nil
-		case MethodToolsCall:
-			var params callToolRequestParams
-			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-				return nil, jsonrpc2.ErrInvalidParams
-			}
-			tool, toolAvailable := q.tools[params.Name]
-			if !toolAvailable {
-				return nil, jsonrpc2.ErrInvalidParams
-			}
-			c := q.toolContextPool.Get().(*toolContext)
-
-			var dest CallToolContent
-
-			c.toolName = params.Name
-			c.ctx = ctx
-			c.jsonrpcRequest = req
-			c.args = params.Arguments
-			c.dest = &dest
-
-			defer func() {
-				c.reset()
-				q.toolContextPool.Put(c)
-			}()
-
-			if err := tool.handler(c); err != nil {
-				return nil, fmt.Errorf(ErrorMessageFailedToHandleTool, params.Name, err)
-			}
-			return dest, nil
-		case MethodResourceSubscribe:
-			var params subscribeResourcesRequestParams
-			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-				return nil, jsonrpc2.ErrInvalidParams
-			}
-			uri := (*url.URL)(params.URI)
-			n, _, err := q.resourceNode.matching(uri)
-			if err != nil {
-				return nil, err
-			}
-
-			subscriber := q.resourceChangeSubscriberPool.Get().(*resourceChangeSubscriber)
-			subscribedResources.Store(uri.String(), subscriber)
-
-			subscriber.ch = resourceUpdateCh
-			subscriber.subscribedURI = uri
-			subscriber.lastReceived = time.Now()
-			subscriber.id = ulid.Make().String()
-
-			n.resourceChangeCtx.subscribe(subscriber)
-			return struct{}{}, nil
-		case MethodResourceUnsubscribe:
-			var params unsubscribeResourcesRequestParams
-			if err := q.jsonUnmarshalFunc(req.Params, &params); err != nil {
-				return nil, jsonrpc2.ErrInvalidParams
-			}
-			uri := (*url.URL)(params.URI)
-			n, _, err := q.resourceNode.matching(uri)
-			if err != nil {
-				return nil, err
-			}
-			v, ok := subscribedResources.LoadAndDelete(uri.String())
-			if !ok {
-				return struct{}{}, nil
-			}
-			subscriber := v.(*resourceChangeSubscriber)
-			n.resourceChangeCtx.unsubscribe(subscriber.id)
-			subscriber.reset()
-			q.resourceChangeSubscriberPool.Put(subscriber)
-			return struct{}{}, nil
-		default:
-			return nil, jsonrpc2.ErrMethodNotFound
-		}
-	}
-}
-
 func (q *Qilin) handleResourceChangeObserver(
 	fn ResourceChangeObserverFunc,
 	c ResourceChangeContext,
@@ -713,6 +625,7 @@ func (q *Qilin) handleResourceListChangeObserver(
 
 type startOptions struct {
 	ctx       context.Context
+	listener  jsonrpc2.Listener
 	framer    jsonrpc2.Framer
 	preempter jsonrpc2.Preempter
 }
@@ -724,6 +637,20 @@ type StartOption func(*startOptions)
 func StartWithContext(ctx context.Context) StartOption {
 	return func(o *startOptions) {
 		o.ctx = ctx
+	}
+}
+
+// StartWithListener settings the jsonrpc2.Listener
+func StartWithListener[T *transport.Stdio | *transport.Streamable](listener T) StartOption {
+	return func(o *startOptions) {
+		switch v := any(listener).(type) {
+		case *transport.Stdio:
+			o.listener = v
+			o.framer = transport.DefaultStdioFramer()
+		case *transport.Streamable:
+			o.listener = v
+			o.framer = transport.DefaultStreamableFramer()
+		}
 	}
 }
 
@@ -743,8 +670,7 @@ func StartWithPreempter(preempter jsonrpc2.Preempter) StartOption {
 
 // Start starts Qilin app
 func (q *Qilin) Start(options ...StartOption) error {
-	ok := q.startupMutex.TryLock()
-	if !ok {
+	if !q.startupMutex.TryLock() {
 		panic(ErrQilinLockingConflicts)
 	}
 	// Locked until the jsonrpc2 server is shut down.
@@ -752,18 +678,19 @@ func (q *Qilin) Start(options ...StartOption) error {
 
 	o := &startOptions{
 		ctx:    context.Background(),
-		framer: transport.DefaultFramer(),
+		framer: transport.DefaultStdioFramer(),
 	}
 	for _, opt := range options {
 		opt(o)
 	}
-	connectionClosed := make(chan struct{})
 	ctx, cancel := context.WithCancel(o.ctx)
 	defer cancel()
+	if o.listener == nil {
+		o.listener = transport.NewStdio(ctx)
+	}
 	context.AfterFunc(ctx, func() {
-		close(connectionClosed)
+		o.listener.Close()
 	})
-	listener := transport.NewStdio(ctx, cancel)
 
 	for name, tool := range q.tools {
 		for _, middleware := range q.toolMiddleware {
@@ -780,21 +707,506 @@ func (q *Qilin) Start(options ...StartOption) error {
 			v.handler = middleware(v.handler)
 		}
 	}
-	var binder binderFunc = func(ctx context.Context, conn *jsonrpc2.Connection) (jsonrpc2.ConnectionOptions, error) {
-		handler := q.handler(o.ctx, conn.Notify, connectionClosed)
-		return jsonrpc2.ConnectionOptions{
-			Preempter: o.preempter,
-			Framer:    o.framer,
-			Handler:   handler,
-		}, nil
+	var (
+		enabledResourceListChange bool
+		enabledResourceChange     bool
+	)
+	if q.capabilities.Resources != nil {
+		enabledResourceListChange = q.capabilities.Resources.ListChanged
+		enabledResourceChange = q.capabilities.Resources.Subscribe
+	}
+	q.handlerPool = sync.Pool{
+		New: func() any {
+			return &handler{
+				qilin:                     q,
+				enabledResourceListChange: enabledResourceListChange,
+				enabledResourceChange:     enabledResourceChange,
+				switchToStreamConnection:  noopFuncWithDuration,
+				wg:                        sync.WaitGroup{},
+			}
+		},
 	}
 
-	srv, err := jsonrpc2.Serve(o.ctx, listener, binder)
+	srv, err := jsonrpc2.Serve(o.ctx, o.listener, newBinder(q, o.preempter, o.framer))
 	if err != nil {
 		return err
 	}
-	q.uncold()
+	q.warming()
 	return srv.Wait()
+}
+
+type Notify func(ctx context.Context, method string, params interface{}) error
+
+// compatibility check
+var _ jsonrpc2.Binder = (*binder)(nil)
+
+type binder struct {
+	qilin     *Qilin
+	preempter jsonrpc2.Preempter
+	framer    jsonrpc2.Framer
+}
+
+func (b *binder) Bind(_ context.Context, conn *jsonrpc2.Connection) (jsonrpc2.ConnectionOptions, error) {
+	h := b.qilin.handlerPool.Get().(*handler)
+	h.runningMu.Lock()
+	h.notify = conn.Notify
+
+	rv := reflect.ValueOf(conn).Elem()
+	elem := rv.FieldByName("closer")
+
+	qilinIO, ok := convertToQilinIO(elem)
+	if !ok {
+		return jsonrpc2.ConnectionOptions{}, errors.New("failed to convert to QilinIO")
+	}
+	switch inner := qilinIO.Inner.(type) {
+	case *transport.Stdio:
+		h.getSessionID = inner.SessionID
+		h.setSessionID = inner.SetSessionID
+		h.connectionCtx = inner.Context()
+	case *transport.StreamableReadWriteCloser:
+		h.getSessionID = inner.SessionID
+		h.setSessionID = inner.SetSessionID
+		h.switchToStreamConnection = inner.SwitchStreamConnection
+		h.connectionCtx = inner.Context()
+	}
+
+	return jsonrpc2.ConnectionOptions{
+		Preempter: b.preempter,
+		Framer:    b.framer,
+		Handler:   h,
+	}, nil
+}
+
+func convertToQilinIO(elem reflect.Value) (_ *internaltransport.QilinIO, ok bool) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Error("[qilin] failed to convert to QilinIO", slog.Any("recover", rec))
+		}
+	}()
+	rf := reflect.NewAt(elem.Type(), elem.Addr().UnsafePointer()).Elem()
+	v, ok := rf.Interface().(*internaltransport.QilinIO)
+	return v, ok
+}
+
+func newBinder(q *Qilin, preempter jsonrpc2.Preempter, framer jsonrpc2.Framer) *binder {
+	return &binder{
+		qilin:     q,
+		preempter: preempter,
+		framer:    framer,
+	}
+}
+
+// compatibility check
+var _ jsonrpc2.Handler = (*handler)(nil)
+
+type handler struct {
+	// qilin instance that is the parent of this handler
+	qilin *Qilin
+
+	// notify sends notifications to the client
+	notify Notify
+
+	// enabledResourceListChange indicates if resource list change is enabled
+	enabledResourceListChange bool
+
+	// enabledResourceChange indicates if resource change is enabled
+	enabledResourceChange bool
+
+	// getSessionID returns the session ID
+	getSessionID func() string
+
+	// setSessionID sets the session ID
+	setSessionID func(string)
+
+	// switchToStreamConnection switches the connection to a stream connection
+	switchToStreamConnection func(keepAlive time.Duration)
+
+	// connectionCtx is the context of the connection
+	connectionCtx context.Context
+
+	// connectionCancel is the cancel function for the connection context
+	connectionCancel context.CancelFunc
+
+	// runningMu is a mutex to protect the running state of the handler
+	runningMu sync.Mutex
+
+	// wg wait for all subscriptions to finish
+	wg sync.WaitGroup
+}
+
+// Handle See: jsonrpc2.Handler.Handle
+func (h *handler) Handle(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
+	var sessionID string
+
+	defer func() {
+		if req.Method != MethodInitialize {
+			h.afterHandle(ctx, sessionID)
+		}
+		go h.reset()
+	}()
+
+	if req.Method == MethodInitialize {
+		return h.handleInitialize(ctx, req, &sessionID)
+	}
+
+	sessionID = h.getSessionID()
+	if sessionID == "" {
+		return nil, jsonrpc2.ErrUnknown
+	}
+	return h.invokeMethod(ctx, req, sessionID)
+}
+
+func (h *handler) afterHandle(ctx context.Context, sessionID string) {
+	if !h.enabledResourceListChange && !h.enabledResourceChange {
+		return
+	}
+	unhealthySubscriptionUris, err := h.qilin.resourcesSubscriptionManager.UnhealthSubscriptions(ctx, sessionID)
+	if err != nil {
+		return
+	}
+	for _, v := range unhealthySubscriptionUris {
+		h.setupResourceSubscription(ctx, sessionID, v)
+	}
+
+	health, err := h.qilin.resourceListChangeSubscriptionManager.Health(ctx, sessionID)
+	if err != nil {
+		return
+	}
+	if !health {
+		sessionCtx, err := h.qilin.sessionManager.Context(ctx, sessionID)
+		if err != nil {
+			return
+		}
+		h.resourceListChangeSubscription(ctx, sessionCtx, sessionID)
+	}
+}
+
+// invokeMethod invokes the method specified in the request.
+func (h *handler) invokeMethod(ctx context.Context, req *jsonrpc2.Request, sessionID string) (interface{}, error) {
+	sessionCtx, err := h.qilin.sessionManager.Context(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case <-sessionCtx.Done():
+	default:
+		// no-op
+	}
+	switch req.Method {
+	case MethodPing:
+		return struct{}{}, nil
+	case MethodResourcesList:
+		return h.handleResourcesList(ctx, req)
+	case MethodResourcesTemplatesList:
+		return h.handleResourcesTemplatesList()
+	case MethodResourcesRead:
+		return h.handleResourcesRead(ctx, req)
+	case MethodPromptsList, MethodPromptsGet:
+		return nil, jsonrpc2.ErrNotHandled
+	case MethodToolsList:
+		return h.handleToolsList()
+	case MethodToolsCall:
+		return h.handleToolsCall(ctx, req)
+	case MethodResourceSubscribe:
+		if !h.enabledResourceChange {
+			return nil, jsonrpc2.ErrMethodNotFound
+		}
+		return h.handleResourceSubscribe(ctx, sessionID, req)
+	case MethodResourceUnsubscribe:
+		return h.handleResourceUnsubscribe(ctx, sessionID, req)
+	default:
+		return nil, jsonrpc2.ErrMethodNotFound
+	}
+}
+
+// handleInitialize handles the initialization request.
+func (h *handler) handleInitialize(ctx context.Context, req *jsonrpc2.Request, sessionID *string) (interface{}, error) {
+	var params initializeRequestParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return nil, jsonrpc2.ErrInvalidParams
+	}
+
+	id, err := h.qilin.sessionManager.Start(ctx)
+	if err != nil {
+		return nil, err
+	}
+	h.setSessionID(id)
+	*sessionID = id
+
+	protocolVersion := params.ProtocolVersion
+	if support := SupportedProtocolVersions[protocolVersion]; !support {
+		protocolVersion = LatestProtocolVersion
+	}
+
+	sessionCtx, err := h.qilin.sessionManager.Context(ctx, *sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if h.enabledResourceListChange {
+		h.resourceListChangeSubscription(ctx, sessionCtx, *sessionID)
+	}
+
+	return &initializeResult{
+		ProtocolVersion: protocolVersion,
+		Capabilities:    h.qilin.capabilities,
+		ServerInfo: implementation{
+			Name:    h.qilin.name,
+			Version: h.qilin.version,
+		},
+	}, nil
+}
+
+// resourceListChangeSubscription observes changes in the resource list and notifies the client.
+func (h *handler) resourceListChangeSubscription(ctx context.Context, sessionCtx context.Context, sessionID string) error {
+	listChangeCh := make(chan struct{}, 1)
+	_resourceListChangeSubscriber := h.qilin.resourceListChangeSubscriberPool.Get().(*resourceListChangeSubscriber)
+	_resourceListChangeSubscriber.id = sessionID
+	_resourceListChangeSubscriber.ch = listChangeCh
+	_resourceListChangeSubscriber.lastReceived = time.Now()
+	h.qilin.resourceListChangeCtx.subscribe(_resourceListChangeSubscriber)
+
+	subscription, err := h.qilin.resourceListChangeSubscriptionManager.SubscribeToResourceListChanges(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	h.switchToStreamConnection(5 * time.Second)
+	h.wg.Add(1)
+
+	go func() {
+		defer h.wg.Done()
+		defer h.qilin.resourceListChangeSubscriberPool.Put(_resourceListChangeSubscriber)
+		defer _resourceListChangeSubscriber.reset()
+
+		ticker := time.NewTicker(h.qilin.resourceListChangeSubscriptionOptions.healthCheckInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				subscription.SignalAlive()
+			case <-sessionCtx.Done():
+			case <-subscription.Unsubscribed():
+			case <-h.connectionCtx.Done():
+				return
+			case <-listChangeCh:
+				err = h.notify(h.connectionCtx, MethodNotificationResourcesListChanged, nil)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return nil
+}
+
+// handleResourceList handles the request to list resources.
+func (h *handler) handleResourcesList(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
+	dest := make(map[string]Resource)
+	c := h.qilin.resourceListContextPool.Get().(*resourceListContext)
+	c.ctx = ctx
+	c.jsonrpcRequest = req
+	c.dest = &dest
+	c.resources = h.qilin.resources
+	defer func() {
+		c.reset()
+		h.qilin.resourceListContextPool.Put(c)
+	}()
+
+	err := h.qilin.resourceListHandler(c)
+	if err != nil {
+		return nil, err
+	}
+
+	return &listResourcesResult{
+		Resources: slices.Collect(maps.Values(dest)),
+	}, nil
+}
+
+// handleResourcesTemplatesList handles the request to list resource templates.
+func (h *handler) handleResourcesTemplatesList() (interface{}, error) {
+	return &listResourceTemplatesResult{
+		ResourceTemplates: slices.Collect(maps.Values(h.qilin.resourceTemplates)),
+	}, nil
+}
+
+// handleResourcesRead handles the request to read a resource.
+func (h *handler) handleResourcesRead(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
+	var params readResourceRequestParams
+	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
+		return nil, jsonrpc2.ErrInvalidParams
+	}
+
+	uri := (*url.URL)(params.URI)
+	route, pathParam, err := h.qilin.resourceNode.matching(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	c := h.qilin.resourceContextPool.Get().(*resourceContext)
+	var dest readResourceResult
+	c.ctx = ctx
+	c.uri = weak.Make(uri)
+	c.jsonrpcRequest = req
+	c.pathParams = pathParam
+	c.dest = &dest
+
+	defer func() {
+		c.reset()
+		h.qilin.resourceContextPool.Put(c)
+	}()
+
+	err = route.handler(c)
+	if err != nil {
+		return nil, err
+	}
+	return &dest, nil
+}
+
+// handleToolsList handles the request to list tools.
+func (h *handler) handleToolsList() (interface{}, error) {
+	return &listToolsResponse{
+		Tools: slices.Collect(maps.Values(h.qilin.tools)),
+	}, nil
+}
+
+// handleToolsCall handles the request to call a tool.
+func (h *handler) handleToolsCall(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
+	var params callToolRequestParams
+	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
+		return nil, jsonrpc2.ErrInvalidParams
+	}
+
+	tool, toolAvailable := h.qilin.tools[params.Name]
+	if !toolAvailable {
+		return nil, jsonrpc2.ErrInvalidParams
+	}
+
+	c := h.qilin.toolContextPool.Get().(*toolContext)
+	var dest CallToolContent
+	c.toolName = params.Name
+	c.ctx = ctx
+	c.jsonrpcRequest = req
+	c.args = params.Arguments
+	c.dest = &dest
+
+	defer func() {
+		c.reset()
+		h.qilin.toolContextPool.Put(c)
+	}()
+
+	if err := tool.handler(c); err != nil {
+		return nil, fmt.Errorf(ErrorMessageFailedToHandleTool, params.Name, err)
+	}
+	return dest, nil
+}
+
+// handleResourceSubscribe handles the request to subscribe to resource changes.
+func (h *handler) handleResourceSubscribe(ctx context.Context, sessionID string, req *jsonrpc2.Request) (interface{}, error) {
+	var params subscribeResourcesRequestParams
+	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
+		return nil, jsonrpc2.ErrInvalidParams
+	}
+
+	uri := (*url.URL)(params.URI)
+	err := h.setupResourceSubscription(ctx, sessionID, uri)
+	if err != nil {
+		return nil, err
+	}
+	return struct{}{}, nil
+}
+
+// setupResourceSubscription sets up a subscription for resource changes.
+func (h *handler) setupResourceSubscription(ctx context.Context, sessionID string, uri *url.URL) error {
+	n, _, err := h.qilin.resourceNode.matching(uri)
+	if err != nil {
+		return err
+	}
+
+	resourceUpdateCh := make(chan *url.URL, 1)
+	subscriber := h.qilin.resourceChangeSubscriberPool.Get().(*resourceChangeSubscriber)
+	subscriber.ch = resourceUpdateCh
+	subscriber.subscribedURI = uri
+	subscriber.lastReceived = time.Now()
+	subscriber.id = fmt.Sprintf("%s#%s", uri.String(), sessionID)
+
+	n.resourceChangeCtx.subscribe(subscriber)
+	subscription, err := h.qilin.resourcesSubscriptionManager.SubscribeToResourceModification(ctx, sessionID, uri)
+	if err != nil {
+		return err
+	}
+
+	h.resourceSubscription(ctx, n, subscriber, subscription, resourceUpdateCh)
+	return nil
+}
+
+// resourceSubscription observes changes to a resource and notifies subscribers.
+func (h *handler) resourceSubscription(
+	ctx context.Context,
+	n *resourceNode,
+	subscriber *resourceChangeSubscriber,
+	subscription Subscription,
+	resourceUpdateCh chan *url.URL,
+) {
+	h.switchToStreamConnection(5 * time.Second)
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		ticker := time.NewTicker(h.qilin.resourcesSubscriptionOptions.healthCheckInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				subscription.SignalAlive()
+			case <-ctx.Done():
+			case <-subscription.Unsubscribed():
+			case <-h.connectionCtx.Done():
+				h.qilin.resourceChangeSubscriberPool.Put(subscriber)
+				subscriber.reset()
+				n.resourceChangeCtx.unsubscribe(subscriber.id)
+				return
+			case uri := <-resourceUpdateCh:
+				if uri == nil {
+					continue
+				}
+				err := h.notify(h.connectionCtx, MethodNotificationResourceUpdated, resourceUpdatedNotificationParam{
+					URI: uri.String(),
+				})
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+}
+
+// handleResourceUnsubscribe handles the request to unsubscribe from resource changes.
+func (h *handler) handleResourceUnsubscribe(ctx context.Context, sessionID string, req *jsonrpc2.Request) (interface{}, error) {
+	var params unsubscribeResourcesRequestParams
+	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
+		return nil, jsonrpc2.ErrInvalidParams
+	}
+
+	uri := (*url.URL)(params.URI)
+	err := h.qilin.resourcesSubscriptionManager.UnsubscribeToResourceModification(ctx, sessionID, uri)
+	if err != nil {
+		return nil, err
+	}
+	return struct{}{}, nil
+}
+
+func (h *handler) reset() {
+	defer h.runningMu.Unlock()
+	if h.runningMu.TryLock() {
+		// if the handler is already reset, avoid double reset
+		return
+	}
+	h.wg.Wait()
+	h.notify = nil
+	h.getSessionID = nil
+	h.setSessionID = nil
+	h.switchToStreamConnection = noopFuncWithDuration
+	h.qilin.handlerPool.Put(h)
 }
 
 type resourceNode struct {
@@ -865,50 +1277,51 @@ func (n *resourceNode) addRoute(uri *url.URL, handler ResourceHandlerFunc, mimeT
 	host := uri.Host
 	path := strings.Split(strings.TrimPrefix(uri.Path, "/"), "/")
 
-	child := *n.child
-	r, ok := child[schema]
-	if !ok {
-		r = &resourceNode{
-			child: resourceNodeChild(),
-		}
-		child[schema] = r
-	}
-	child = *r.child
-	r, ok = child[host]
-	if !ok {
-		r = &resourceNode{
-			child: resourceNodeChild(),
-		}
-		child[host] = r
-	}
+	// Handle schema node
+	schemaNode := n.getOrCreateChild(schema)
+
+	// Handle host node
+	hostNode := schemaNode.getOrCreateChild(host)
+
+	// If path is empty, set handler on host node
 	if len(path) == 0 {
 		if handler != nil {
-			r.handler = handler
+			hostNode.handler = handler
 		}
 		return
 	}
 
-	p := ""
-	for _, p = range path {
-		child = *r.child
-		r, ok = child[p]
-		if !ok {
-			r = &resourceNode{
-				child: resourceNodeChild(),
-			}
-			if strings.HasPrefix(p, "{") && strings.HasSuffix(p, "}") {
-				r.wild = true
-				r.paramName = strings.TrimPrefix(strings.TrimSuffix(p, "}"), "{")
-			}
-			child[p] = r
-		}
+	// Process path segments
+	currentNode := hostNode
+	for _, segment := range path {
+		currentNode = currentNode.getOrCreateChild(segment)
 	}
+
+	// Set handler and mime type on final node
 	if handler != nil {
-		r.handler = handler
+		currentNode.handler = handler
 	}
 	if mimeType != "" {
-		r.mimeType = mimeType
+		currentNode.mimeType = mimeType
 	}
+}
+
+// getOrCreateChild gets or creates a child node for the given segment
+func (n *resourceNode) getOrCreateChild(segment string) *resourceNode {
+	child := *n.child
+	node, ok := child[segment]
+	if !ok {
+		node = &resourceNode{
+			child: resourceNodeChild(),
+		}
+		// Check if this is a path parameter (with curly braces)
+		if strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") {
+			node.wild = true
+			node.paramName = strings.TrimPrefix(strings.TrimSuffix(segment, "}"), "{")
+		}
+		child[segment] = node
+	}
+	return node
 }
 
 // flattenIter flattens the resource node tree into a sequence of resource nodes
@@ -935,10 +1348,6 @@ func resourceNodeChild() *map[string]*resourceNode {
 	return &v
 }
 
-var _ jsonrpc2.Binder = (*binderFunc)(nil)
-
-type binderFunc func(ctx context.Context, conn *jsonrpc2.Connection) (jsonrpc2.ConnectionOptions, error)
-
-func (b binderFunc) Bind(ctx context.Context, connection *jsonrpc2.Connection) (jsonrpc2.ConnectionOptions, error) {
-	return b(ctx, connection)
-}
+var (
+	noopFuncWithDuration = func(_ time.Duration) {}
+)
