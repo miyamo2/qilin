@@ -352,7 +352,6 @@ func (s *StreamableReadWriteCloser) Probe() error {
 
 // Context returns the context of the StreamableReadWriteCloser.
 func (s *StreamableReadWriteCloser) Context() context.Context {
-	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	ctx := context.WithValue(s.ctx, struct{}{}, struct{}{})
 	return ctx
 }
