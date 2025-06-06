@@ -107,6 +107,7 @@ func (s *Stdio) SetSessionID(sessionID string) {
 
 // Context returns the context of the Stdio listener.
 func (s *Stdio) Context() context.Context {
+	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	ctx := context.WithValue(s.ctx, struct{}{}, struct{}{})
 	return ctx
 }
