@@ -29,6 +29,7 @@ type Stdio struct {
 	cancel      context.CancelFunc
 	writeMu     sync.Mutex
 	acceptMu    sync.Mutex
+	closed      atomic.Bool
 	sessionID   string
 	sessionIDMu sync.RWMutex
 }
