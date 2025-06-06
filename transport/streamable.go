@@ -334,6 +334,8 @@ func (s *StreamableReadWriteCloser) SwitchStreamConnection(keepAlive time.Durati
 				s.Probe()
 			case <-s.ctx.Done():
 				return
+			default:
+				// no-op
 			}
 		}
 	}()
