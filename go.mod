@@ -6,7 +6,7 @@ require (
 	github.com/goccy/go-json v0.10.5
 	github.com/invopop/jsonschema v0.13.0
 	github.com/oklog/ulid/v2 v2.1.1
-	golang.org/x/exp/jsonrpc2 v0.0.0-20250506013437-ce4c2cf36ca6
+	golang.org/x/exp/jsonrpc2 v0.0.0-20250606033433-dcc06ee1d476
 )
 
 require (
