@@ -824,9 +824,6 @@ type handler struct {
 	// connectionCtx is the context of the connection
 	connectionCtx context.Context
 
-	// connectionCancel is the cancel function for the connection context
-	connectionCancel context.CancelFunc
-
 	// runningMu is a mutex to protect the running state of the handler
 	runningMu sync.Mutex
 
@@ -1206,6 +1203,7 @@ func (h *handler) reset() {
 	h.getSessionID = nil
 	h.setSessionID = nil
 	h.switchToStreamConnection = noopFuncWithDuration
+	h.connectionCtx = nil
 	h.qilin.handlerPool.Put(h)
 }
 
