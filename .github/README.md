@@ -25,6 +25,7 @@
 |:-----------------------------:|------------------------------------------------------------------------------------------------------------------------|
 |   ⚡ **Zero‑config server**    | `qilin.New().Start()` launches an MCP server on **STDIN/STDOUT**                                                       |
 | 🤝 **Familiar look and feel** | Handlers inspired by Go's well-known web application framework. Developers familiar with them will feel right at home. |
+|     ⏩ **Streamable HTTP**     | Supports Streamable HTTP transport.                                                                                    |
 
 ## 🚀 Quick Start
 
@@ -72,21 +73,21 @@ func main() {
 ### Transports
 
 - [x] Stdio
-- [ ] SSE
+- [x] Streamable HTTP
 
 ### Features
 
 - [x] Tool
-  - [X] Listing
-  - [X] Calling
-    - [X] Middleware
+    - [X] Listing
+    - [X] Calling
+        - [X] Middleware
 - [x] Resource
-  - [X] Listing
-  - [X] Reading
-    - [X] Middleware
-  - [X] Templates
-  - [X] List Changed Notification
-  - [X] Subscriptions
+    - [X] Listing
+    - [X] Reading
+        - [X] Middleware
+    - [X] Templates
+    - [X] List Changed Notification
+    - [X] Subscriptions
 - [ ] Prompt
 
 ## 📜 License
