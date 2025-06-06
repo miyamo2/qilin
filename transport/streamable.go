@@ -35,10 +35,8 @@ type Streamable struct {
 }
 
 var (
-	defaultAllowCORSOrigin  = []string{"*"}
-	defaultAllowCORSMethods = []string{"POST", "GET", "OPTIONS", "DELETE"}
-	defaultAllowCORSHeaders = []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}
 	defaultAccessControlAllowOrigin  = []string{"*"}
+	defaultAccessControlAllowMethods = []string{"POST", "GET", "OPTIONS", "DELETE"}
 	defaultAccessControlAllowHeaders = []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}
 )
 
