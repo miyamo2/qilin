@@ -88,7 +88,6 @@ func (s *InMemorySessionStore) Context(_ context.Context, sessionID string) (ses
 		return nil, fmt.Errorf("session '%s' not found", sessionID)
 	}
 	session := v.(*stateFullSession)
-	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	return context.WithValue(session.ctx, struct{}{}, struct{}{}), nil
 }
 
