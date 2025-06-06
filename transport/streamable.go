@@ -38,6 +38,8 @@ var (
 	defaultAllowCORSOrigin  = []string{"*"}
 	defaultAllowCORSMethods = []string{"POST", "GET", "OPTIONS", "DELETE"}
 	defaultAllowCORSHeaders = []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}
+	defaultAccessControlAllowOrigin  = []string{"*"}
+	defaultAccessControlAllowHeaders = []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}
 )
 
 // Reader See: jsonrpc2.Framer#Reader
@@ -131,18 +133,22 @@ func (s *Streamable) cors(w http.ResponseWriter, _ *http.Request) {
 }
 
 type streamableOptions struct {
-	address          string
-	netListener      net.Listener
-	allowCORSOrigin  []string
-	allowCORSMethods []string
-	allowCORSHeaders []string
-	authorizer       Authorizer
+	address                         string
+	netListener                     net.Listener
+	accessControlAllowOrigin        []string
+	accessControlAllowOriginMethods []string
+	accessControlAllowOriginHeaders []string
+	authorizer                      Authorizer
 }
 
 // StreamableOption configures the Streamable transport.
 type StreamableOption func(*streamableOptions)
 
 // StreamableWithAddress settings the address to listen on.
+//
+// If not set, it defaults to ":3001".
+//
+// If a net.Listener is provided, this option is ignored.
 func StreamableWithAddress(address string) StreamableOption {
 	return func(s *streamableOptions) {
 		s.address = address
@@ -157,24 +163,24 @@ func StreamableWithNetListener(listener net.Listener) StreamableOption {
 	}
 }
 
-// StreamableWithAllowCORSOrigin settings the allowed CORS origins.
-func StreamableWithAllowCORSOrigin(allowCORSOrigin []string) StreamableOption {
+// StreamableWithAccessControlAllowOrigin settings the allowed origins.
+func StreamableWithAccessControlAllowOrigin(allowCORSOrigin []string) StreamableOption {
 	return func(s *streamableOptions) {
-		s.allowCORSOrigin = allowCORSOrigin
+		s.accessControlAllowOrigin = allowCORSOrigin
 	}
 }
 
-// StreamableWithAllowCORSMethods settings the allowed CORS methods.
-func StreamableWithAllowCORSMethods(allowCORSMethods []string) StreamableOption {
+// StreamableWithAccessControlAllowMethods settings the allowed CORS methods.
+func StreamableWithAccessControlAllowMethods(allowCORSMethods []string) StreamableOption {
 	return func(s *streamableOptions) {
-		s.allowCORSMethods = allowCORSMethods
+		s.accessControlAllowOriginMethods = allowCORSMethods
 	}
 }
 
-// StreamableWithAllowCORSHeaders settings the allowed CORS headers.
-func StreamableWithAllowCORSHeaders(allowCORSHeaders []string) StreamableOption {
+// StreamableWithAccessControlAllowHeaders settings the allowed CORS headers.
+func StreamableWithAccessControlAllowHeaders(allowCORSHeaders []string) StreamableOption {
 	return func(s *streamableOptions) {
-		s.allowCORSHeaders = allowCORSHeaders
+		s.accessControlAllowOriginHeaders = allowCORSHeaders
 	}
 }
 
@@ -188,11 +194,11 @@ func StreamableWithAuthorizer(authorizer Authorizer) StreamableOption {
 // NewStreamable creates new Streamable transport.
 func NewStreamable(options ...StreamableOption) *Streamable {
 	opts := &streamableOptions{
-		address:          ":3001",
-		allowCORSOrigin:  defaultAllowCORSOrigin,
-		allowCORSMethods: defaultAllowCORSMethods,
-		allowCORSHeaders: defaultAllowCORSHeaders,
-		authorizer:       DefaultAuthorizer(),
+		address:                         ":3001",
+		accessControlAllowOrigin:        defaultAccessControlAllowOrigin,
+		accessControlAllowOriginMethods: defaultAccessControlAllowMethods,
+		accessControlAllowOriginHeaders: defaultAccessControlAllowHeaders,
+		authorizer:                      DefaultAuthorizer(),
 	}
 	for _, opt := range options {
 		opt(opts)
@@ -208,9 +214,9 @@ func NewStreamable(options ...StreamableOption) *Streamable {
 	s := &Streamable{
 		netListener:      opts.netListener,
 		rwc:              make(chan *StreamableReadWriteCloser),
-		allowCORSOrigin:  strings.Join(opts.allowCORSOrigin, ","),
-		allowCORSMethods: strings.Join(opts.allowCORSMethods, ","),
-		allowCORSHeaders: strings.Join(opts.allowCORSHeaders, ","),
+		allowCORSOrigin:  strings.Join(opts.accessControlAllowOrigin, ","),
+		allowCORSMethods: strings.Join(opts.accessControlAllowOriginMethods, ","),
+		allowCORSHeaders: strings.Join(opts.accessControlAllowOriginHeaders, ","),
 		errCh:            make(chan error, 1),
 		framer:           newStreamableFramer(),
 		authorizer:       opts.authorizer,
