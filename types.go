@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/invopop/jsonschema"
 	"net/url"
+	"sync"
 	"weak"
 )
 
@@ -559,4 +560,23 @@ type unsubscribeResourcesRequestParams struct {
 type resourceUpdatedNotificationParam struct {
 	// URI of the resource that changed.
 	URI string `json:"uri"`
+}
+
+// compatibility check
+var _ SubscribedResources = (*sync.Map)(nil)
+
+// SubscribedResources is a map of resources that the client is subscribed to.
+//
+// key: <Qilin Client ID>#<Resource URI>
+type SubscribedResources interface {
+	Load(key any) (value any, ok bool)
+	Store(key any, value any)
+	Clear()
+	LoadOrStore(key any, value any) (actual any, loaded bool)
+	LoadAndDelete(key any) (value any, loaded bool)
+	Delete(key any)
+	Swap(key any, value any) (previous any, loaded bool)
+	CompareAndSwap(key any, old any, new any) (swapped bool)
+	CompareAndDelete(key any, old any) (deleted bool)
+	Range(f func(key any, value any) bool)
 }
