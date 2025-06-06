@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"sync"
-	"sync/atomic"
 )
 
 // compatibility check
@@ -74,7 +73,6 @@ func (s *Stdio) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
 		s.cancel()
-		s.closed.Store(true)
 		err = s.in.Close()
 		if err != nil {
 			return
