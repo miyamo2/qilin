@@ -2,10 +2,11 @@ package qilin
 
 import (
 	"encoding/json"
-	"github.com/invopop/jsonschema"
 	"net/url"
 	"sync"
 	"weak"
+
+	"github.com/invopop/jsonschema"
 )
 
 const (

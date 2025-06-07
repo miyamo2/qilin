@@ -1,5 +1,4 @@
-name: lint
-
+name: format
 on:
   push:
     branches:
@@ -38,15 +37,5 @@ jobs:
         run: |
           aqua i
 
-      - name: Setup reviewdog
-        uses: reviewdog/action-setup@e04ffabe3898a0af8d0fb1af00c188831c4b5893 # v1.3.2
-        with:
-          reviewdog_version: latest
-
-      - name: staticcheck with reviewdog
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          golangci-lint run --output.text.path \
-          --output.text.print-linter-name \
-          --output.text.print-issued-lines | reviewdog -f=golangci-lint -reporter=github-pr-check -level warning
+      - name: Format
+        run: golangci-lint fmt --diff

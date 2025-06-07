@@ -1,0 +1,18 @@
+version: "2"
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - unused
+  exclusions:
+    paths:
+      - "examples/.*"
+      - ".*example_test.go"
+formatters:
+  enable:
+    - gofmt
+    - goimports
+    - golines
+  exclusions:
+    paths:
+      - "examples/.*"

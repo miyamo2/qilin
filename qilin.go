@@ -6,10 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/invopop/jsonschema"
-	internaltransport "github.com/miyamo2/qilin/internal/transport"
-	"github.com/miyamo2/qilin/transport"
-	"golang.org/x/exp/jsonrpc2"
 	"iter"
 	"log/slog"
 	"maps"
@@ -20,6 +16,11 @@ import (
 	"sync"
 	"time"
 	"weak"
+
+	"github.com/invopop/jsonschema"
+	internaltransport "github.com/miyamo2/qilin/internal/transport"
+	"github.com/miyamo2/qilin/transport"
+	"golang.org/x/exp/jsonrpc2"
 )
 
 // Qilin is the top-level framework instance.
@@ -517,7 +518,10 @@ func (q *Qilin) Resource(name, uri string, handler ResourceHandlerFunc, options 
 }
 
 // ResourceList registers a new resource list handler.
-func (q *Qilin) ResourceList(handler ResourceListHandlerFunc, middleware ...ResourceListMiddlewareFunc) {
+func (q *Qilin) ResourceList(
+	handler ResourceListHandlerFunc,
+	middleware ...ResourceListMiddlewareFunc,
+) {
 	ok := q.startupMutex.TryLock()
 	if !ok {
 		panic(ErrQilinLockingConflicts)
@@ -689,7 +693,7 @@ func (q *Qilin) Start(options ...StartOption) error {
 		o.listener = transport.NewStdio(ctx)
 	}
 	context.AfterFunc(ctx, func() {
-		o.listener.Close()
+		_ = o.listener.Close()
 	})
 
 	for name, tool := range q.tools {
@@ -746,7 +750,10 @@ type binder struct {
 	framer    jsonrpc2.Framer
 }
 
-func (b *binder) Bind(_ context.Context, conn *jsonrpc2.Connection) (jsonrpc2.ConnectionOptions, error) {
+func (b *binder) Bind(
+	_ context.Context,
+	conn *jsonrpc2.Connection,
+) (jsonrpc2.ConnectionOptions, error) {
 	h := b.qilin.handlerPool.Get().(*handler)
 	h.runningMu.Lock()
 	h.notify = conn.Notify
@@ -857,12 +864,15 @@ func (h *handler) afterHandle(ctx context.Context, sessionID string) {
 	if !h.enabledResourceListChange && !h.enabledResourceChange {
 		return
 	}
-	unhealthySubscriptionUris, err := h.qilin.resourcesSubscriptionManager.UnhealthSubscriptions(ctx, sessionID)
+	unhealthySubscriptionUris, err := h.qilin.resourcesSubscriptionManager.UnhealthSubscriptions(
+		ctx,
+		sessionID,
+	)
 	if err != nil {
 		return
 	}
 	for _, v := range unhealthySubscriptionUris {
-		h.setupResourceSubscription(ctx, sessionID, v)
+		_ = h.setupResourceSubscription(ctx, sessionID, v)
 	}
 
 	health, err := h.qilin.resourceListChangeSubscriptionManager.Health(ctx, sessionID)
@@ -874,12 +884,16 @@ func (h *handler) afterHandle(ctx context.Context, sessionID string) {
 		if err != nil {
 			return
 		}
-		h.resourceListChangeSubscription(ctx, sessionCtx, sessionID)
+		_ = h.resourceListChangeSubscription(ctx, sessionCtx, sessionID)
 	}
 }
 
 // invokeMethod invokes the method specified in the request.
-func (h *handler) invokeMethod(ctx context.Context, req *jsonrpc2.Request, sessionID string) (interface{}, error) {
+func (h *handler) invokeMethod(
+	ctx context.Context,
+	req *jsonrpc2.Request,
+	sessionID string,
+) (interface{}, error) {
 	sessionCtx, err := h.qilin.sessionManager.Context(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -917,7 +931,11 @@ func (h *handler) invokeMethod(ctx context.Context, req *jsonrpc2.Request, sessi
 }
 
 // handleInitialize handles the initialization request.
-func (h *handler) handleInitialize(ctx context.Context, req *jsonrpc2.Request, sessionID *string) (interface{}, error) {
+func (h *handler) handleInitialize(
+	ctx context.Context,
+	req *jsonrpc2.Request,
+	sessionID *string,
+) (interface{}, error) {
 	var params initializeRequestParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		return nil, jsonrpc2.ErrInvalidParams
@@ -941,7 +959,7 @@ func (h *handler) handleInitialize(ctx context.Context, req *jsonrpc2.Request, s
 	}
 
 	if h.enabledResourceListChange {
-		h.resourceListChangeSubscription(ctx, sessionCtx, *sessionID)
+		_ = h.resourceListChangeSubscription(ctx, sessionCtx, *sessionID)
 	}
 
 	return &initializeResult{
@@ -955,7 +973,11 @@ func (h *handler) handleInitialize(ctx context.Context, req *jsonrpc2.Request, s
 }
 
 // resourceListChangeSubscription observes changes in the resource list and notifies the client.
-func (h *handler) resourceListChangeSubscription(ctx context.Context, sessionCtx context.Context, sessionID string) error {
+func (h *handler) resourceListChangeSubscription(
+	ctx context.Context,
+	sessionCtx context.Context,
+	sessionID string,
+) error {
 	listChangeCh := make(chan struct{}, 1)
 	_resourceListChangeSubscriber := h.qilin.resourceListChangeSubscriberPool.Get().(*resourceListChangeSubscriber)
 	_resourceListChangeSubscriber.id = sessionID
@@ -963,7 +985,10 @@ func (h *handler) resourceListChangeSubscription(ctx context.Context, sessionCtx
 	_resourceListChangeSubscriber.lastReceived = time.Now()
 	h.qilin.resourceListChangeCtx.subscribe(_resourceListChangeSubscriber)
 
-	subscription, err := h.qilin.resourceListChangeSubscriptionManager.SubscribeToResourceListChanges(ctx, sessionID)
+	subscription, err := h.qilin.resourceListChangeSubscriptionManager.SubscribeToResourceListChanges(
+		ctx,
+		sessionID,
+	)
 	if err != nil {
 		return err
 	}
@@ -997,7 +1022,10 @@ func (h *handler) resourceListChangeSubscription(ctx context.Context, sessionCtx
 }
 
 // handleResourceList handles the request to list resources.
-func (h *handler) handleResourcesList(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
+func (h *handler) handleResourcesList(
+	ctx context.Context,
+	req *jsonrpc2.Request,
+) (interface{}, error) {
 	dest := make(map[string]Resource)
 	c := h.qilin.resourceListContextPool.Get().(*resourceListContext)
 	c.ctx = ctx
@@ -1027,7 +1055,10 @@ func (h *handler) handleResourcesTemplatesList() (interface{}, error) {
 }
 
 // handleResourcesRead handles the request to read a resource.
-func (h *handler) handleResourcesRead(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
+func (h *handler) handleResourcesRead(
+	ctx context.Context,
+	req *jsonrpc2.Request,
+) (interface{}, error) {
 	var params readResourceRequestParams
 	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
 		return nil, jsonrpc2.ErrInvalidParams
@@ -1098,7 +1129,11 @@ func (h *handler) handleToolsCall(ctx context.Context, req *jsonrpc2.Request) (i
 }
 
 // handleResourceSubscribe handles the request to subscribe to resource changes.
-func (h *handler) handleResourceSubscribe(ctx context.Context, sessionID string, req *jsonrpc2.Request) (interface{}, error) {
+func (h *handler) handleResourceSubscribe(
+	ctx context.Context,
+	sessionID string,
+	req *jsonrpc2.Request,
+) (interface{}, error) {
 	var params subscribeResourcesRequestParams
 	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
 		return nil, jsonrpc2.ErrInvalidParams
@@ -1113,7 +1148,11 @@ func (h *handler) handleResourceSubscribe(ctx context.Context, sessionID string,
 }
 
 // setupResourceSubscription sets up a subscription for resource changes.
-func (h *handler) setupResourceSubscription(ctx context.Context, sessionID string, uri *url.URL) error {
+func (h *handler) setupResourceSubscription(
+	ctx context.Context,
+	sessionID string,
+	uri *url.URL,
+) error {
 	n, _, err := h.qilin.resourceNode.matching(uri)
 	if err != nil {
 		return err
@@ -1127,7 +1166,11 @@ func (h *handler) setupResourceSubscription(ctx context.Context, sessionID strin
 	subscriber.id = fmt.Sprintf("%s#%s", uri.String(), sessionID)
 
 	n.resourceChangeCtx.subscribe(subscriber)
-	subscription, err := h.qilin.resourcesSubscriptionManager.SubscribeToResourceModification(ctx, sessionID, uri)
+	subscription, err := h.qilin.resourcesSubscriptionManager.SubscribeToResourceModification(
+		ctx,
+		sessionID,
+		uri,
+	)
 	if err != nil {
 		return err
 	}
@@ -1165,9 +1208,13 @@ func (h *handler) resourceSubscription(
 				if uri == nil {
 					continue
 				}
-				err := h.notify(h.connectionCtx, MethodNotificationResourceUpdated, resourceUpdatedNotificationParam{
-					URI: uri.String(),
-				})
+				err := h.notify(
+					h.connectionCtx,
+					MethodNotificationResourceUpdated,
+					resourceUpdatedNotificationParam{
+						URI: uri.String(),
+					},
+				)
 				if err != nil {
 					return
 				}
@@ -1178,14 +1225,22 @@ func (h *handler) resourceSubscription(
 }
 
 // handleResourceUnsubscribe handles the request to unsubscribe from resource changes.
-func (h *handler) handleResourceUnsubscribe(ctx context.Context, sessionID string, req *jsonrpc2.Request) (interface{}, error) {
+func (h *handler) handleResourceUnsubscribe(
+	ctx context.Context,
+	sessionID string,
+	req *jsonrpc2.Request,
+) (interface{}, error) {
 	var params unsubscribeResourcesRequestParams
 	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
 		return nil, jsonrpc2.ErrInvalidParams
 	}
 
 	uri := (*url.URL)(params.URI)
-	err := h.qilin.resourcesSubscriptionManager.UnsubscribeToResourceModification(ctx, sessionID, uri)
+	err := h.qilin.resourcesSubscriptionManager.UnsubscribeToResourceModification(
+		ctx,
+		sessionID,
+		uri,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -3,11 +3,12 @@ package transport
 import (
 	"bytes"
 	"context"
-	internaltransport "github.com/miyamo2/qilin/internal/transport"
-	"golang.org/x/exp/jsonrpc2"
 	"io"
 	"os"
 	"sync"
+
+	internaltransport "github.com/miyamo2/qilin/internal/transport"
+	"golang.org/x/exp/jsonrpc2"
 )
 
 // compatibility check
@@ -36,7 +37,7 @@ type Stdio struct {
 func (s *Stdio) Accept(ctx context.Context) (io.ReadWriteCloser, error) {
 	select {
 	case <-s.ctx.Done():
-		s.Close()
+		_ = s.Close()
 		return nil, io.EOF
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -104,6 +105,7 @@ func (s *Stdio) SetSessionID(sessionID string) {
 
 // Context returns the context of the Stdio listener.
 func (s *Stdio) Context() context.Context {
+	//nolint:staticcheck
 	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	ctx := context.WithValue(s.ctx, struct{}{}, struct{}{})
 	return ctx
@@ -124,7 +126,7 @@ func NewStdio(ctx context.Context, options ...StdioOption) *Stdio {
 		cancel: cancel,
 	}
 	context.AfterFunc(ctx, func() {
-		s.Close()
+		_ = s.Close()
 	})
 	return s
 }

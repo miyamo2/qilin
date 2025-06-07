@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/exp/jsonrpc2"
 	"net/url"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 	"weak"
+
+	"golang.org/x/exp/jsonrpc2"
 )
 
 func Test_context_Get(t *testing.T) {
@@ -88,6 +89,7 @@ func Test_context_SetContext(t *testing.T) {
 	})
 	t.Run("nil context", func(t *testing.T) {
 		c := &_context{}
+		//nolint:staticcheck
 		//lint:ignore SA1012 just for test
 		c.SetContext(nil)
 
@@ -434,7 +436,10 @@ func TestToolContext_JSONResource(t *testing.T) {
 		}, nil)
 		c.dest = &dest
 		uri := MustURL(t, "example://example.com")
-		if err := c.JSONResource(uri, map[string]string{"key": "value"}, ""); !errors.Is(err, errTest) {
+		if err := c.JSONResource(uri, map[string]string{"key": "value"}, ""); !errors.Is(
+			err,
+			errTest,
+		) {
 			t.Fatalf("expected error %v, got %v", errTest, err)
 		}
 	})

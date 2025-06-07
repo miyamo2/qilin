@@ -7,5 +7,7 @@ const (
 )
 
 var (
-	ErrQilinLockingConflicts = errors.New("qilin is already running or there is a configuration process conflict")
+	ErrQilinLockingConflicts = errors.New(
+		"qilin is already running or there is a configuration process conflict",
+	)
 )

@@ -3,10 +3,11 @@ package qilin_test
 import (
 	"context"
 	"fmt"
-	"github.com/miyamo2/qilin"
-	"github.com/miyamo2/qilin/transport"
 	"net/url"
 	"strings"
+
+	"github.com/miyamo2/qilin"
+	"github.com/miyamo2/qilin/transport"
 )
 
 type Req struct {
@@ -107,7 +108,7 @@ func ExampleToolWithMiddleware() {
 }
 
 type Employee struct {
-	ID   string `json:"id" jsonschema:"title=ID"`
+	ID   string `json:"id"   jsonschema:"title=ID"`
 	Name string `json:"name" jsonschema:"title=Name"`
 }
 

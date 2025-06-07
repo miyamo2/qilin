@@ -3,12 +3,13 @@ package qilin
 import (
 	"context"
 	"encoding/json"
-	"golang.org/x/exp/jsonrpc2"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 	"weak"
+
+	"golang.org/x/exp/jsonrpc2"
 )
 
 type Context interface {
@@ -233,7 +234,11 @@ func (c *toolContext) reset() {
 }
 
 // newToolContext creates a new Tool context
-func newToolContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMarshalFunc, base64StringFunc Base64StringFunc) *toolContext {
+func newToolContext(
+	jsonUnmarshalFunc JSONUnmarshalFunc,
+	jsonMarshalFunc JSONMarshalFunc,
+	base64StringFunc Base64StringFunc,
+) *toolContext {
 	return &toolContext{
 		_context: _context{
 			jsonUnmarshalFunc: jsonUnmarshalFunc,
@@ -352,7 +357,11 @@ func (c *resourceContext) reset() {
 }
 
 // newResourceContext creates a new resource context
-func newResourceContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMarshalFunc, base64StringFunc Base64StringFunc) *resourceContext {
+func newResourceContext(
+	jsonUnmarshalFunc JSONUnmarshalFunc,
+	jsonMarshalFunc JSONMarshalFunc,
+	base64StringFunc Base64StringFunc,
+) *resourceContext {
 	return &resourceContext{
 		_context: _context{
 			jsonUnmarshalFunc: jsonUnmarshalFunc,
@@ -402,13 +411,20 @@ func (r *resourceListContext) reset() {
 }
 
 // newResourceListContext creates a new resource list context
-func newResourceListContext(jsonUnmarshalFunc JSONUnmarshalFunc, jsonMarshalFunc JSONMarshalFunc) *resourceListContext {
+func newResourceListContext(
+	jsonUnmarshalFunc JSONUnmarshalFunc,
+	jsonMarshalFunc JSONMarshalFunc,
+) *resourceListContext {
 	return &resourceListContext{
 		_context: _context{
 			jsonUnmarshalFunc: jsonUnmarshalFunc,
 			jsonMarshalFunc:   jsonMarshalFunc,
 		},
 	}
+}
+
+type PromptContext interface {
+	Context
 }
 
 // ResourceChangeSubscriber is the interface for resource change subscribers
