@@ -12,7 +12,7 @@ on:
 permissions: write-all
 
 jobs:
-  ci:
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
