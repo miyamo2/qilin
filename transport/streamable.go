@@ -37,7 +37,7 @@ type Streamable struct {
 var (
 	defaultAccessControlAllowOrigin  = []string{"*"}
 	defaultAccessControlAllowMethods = []string{"POST", "GET", "OPTIONS", "DELETE"}
-	defaultAccessControlAllowHeaders = []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"}
+	defaultAccessControlAllowHeaders = []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", MCPSessionID}
 )
 
 // Reader See: jsonrpc2.Framer#Reader
