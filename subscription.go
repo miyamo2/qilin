@@ -13,7 +13,9 @@ var (
 	// ErrAlreadySubscribed occurs when a subscription already exists
 	ErrAlreadySubscribed = errors.New("already subscribed")
 	// ErrResourceModificationSubscriptionNotFound occurs when a resource list subscription is not found
-	ErrResourceModificationSubscriptionNotFound = errors.New("resource modification subscription not found")
+	ErrResourceModificationSubscriptionNotFound = errors.New(
+		"resource modification subscription not found",
+	)
 	// ErrResourceListChangeSubscriptionNotFound occurs when a resource list subscription is not found
 	ErrResourceListChangeSubscriptionNotFound = errors.New("resource list subscription not found")
 )
@@ -102,7 +104,10 @@ type InMemoryResourceListChangeSubscriptionStore struct {
 	subscriptionHealthInterval time.Duration
 }
 
-func (s *InMemoryResourceListChangeSubscriptionStore) Issue(_ context.Context, sessionID string) (Subscription, error) {
+func (s *InMemoryResourceListChangeSubscriptionStore) Issue(
+	_ context.Context,
+	sessionID string,
+) (Subscription, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	subscription := &InMemorySubscription{
 		ctx:               ctx,
@@ -113,7 +118,10 @@ func (s *InMemoryResourceListChangeSubscriptionStore) Issue(_ context.Context, s
 	return subscription, nil
 }
 
-func (s *InMemoryResourceListChangeSubscriptionStore) Get(_ context.Context, sessionID string) (Subscription, error) {
+func (s *InMemoryResourceListChangeSubscriptionStore) Get(
+	_ context.Context,
+	sessionID string,
+) (Subscription, error) {
 	v, loaded := s.subscriptions.Load(sessionID)
 	if !loaded {
 		return nil, ErrResourceListChangeSubscriptionNotFound
@@ -121,7 +129,10 @@ func (s *InMemoryResourceListChangeSubscriptionStore) Get(_ context.Context, ses
 	return v.(*InMemorySubscription), nil
 }
 
-func (s *InMemoryResourceListChangeSubscriptionStore) Delete(_ context.Context, sessionID string) error {
+func (s *InMemoryResourceListChangeSubscriptionStore) Delete(
+	_ context.Context,
+	sessionID string,
+) error {
 	value, loaded := s.subscriptions.LoadAndDelete(sessionID)
 	if !loaded {
 		return nil
@@ -144,7 +155,11 @@ type InMemoryResourceModificationSubscriptionStore struct {
 	subscriptionHealthInterval time.Duration
 }
 
-func (s *InMemoryResourceModificationSubscriptionStore) Get(_ context.Context, sessionID string, uri *url.URL) (Subscription, error) {
+func (s *InMemoryResourceModificationSubscriptionStore) Get(
+	_ context.Context,
+	sessionID string,
+	uri *url.URL,
+) (Subscription, error) {
 	untypedSessionSubscriptions, ok := s.subscriptions.Load(sessionID)
 	if !ok {
 		return nil, ErrResourceModificationSubscriptionNotFound
@@ -166,7 +181,11 @@ func (s *InMemoryResourceModificationSubscriptionStore) Get(_ context.Context, s
 	return subscription, nil
 }
 
-func (s *InMemoryResourceModificationSubscriptionStore) Issue(_ context.Context, sessionID string, uri *url.URL) (Subscription, error) {
+func (s *InMemoryResourceModificationSubscriptionStore) Issue(
+	_ context.Context,
+	sessionID string,
+	uri *url.URL,
+) (Subscription, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	subscription := &InMemorySubscription{
 		ctx:               ctx,
@@ -179,7 +198,11 @@ func (s *InMemoryResourceModificationSubscriptionStore) Issue(_ context.Context,
 	return subscription, nil
 }
 
-func (s *InMemoryResourceModificationSubscriptionStore) Delete(_ context.Context, sessionID string, uri *url.URL) error {
+func (s *InMemoryResourceModificationSubscriptionStore) Delete(
+	_ context.Context,
+	sessionID string,
+	uri *url.URL,
+) error {
 	untypedSessionSubscriptions, ok := s.subscriptions.Load(sessionID)
 	if !ok {
 		return nil
@@ -195,7 +218,10 @@ func (s *InMemoryResourceModificationSubscriptionStore) Delete(_ context.Context
 	return nil
 }
 
-func (s *InMemoryResourceModificationSubscriptionStore) RetrieveBySessionID(_ context.Context, sessionID string) ([]Subscription, error) {
+func (s *InMemoryResourceModificationSubscriptionStore) RetrieveBySessionID(
+	_ context.Context,
+	sessionID string,
+) ([]Subscription, error) {
 	untypedSessionSubscriptions, ok := s.subscriptions.Load(sessionID)
 	if !ok {
 		return nil, fmt.Errorf("session subscription '%s' not found", sessionID)
@@ -216,7 +242,10 @@ func (s *InMemoryResourceModificationSubscriptionStore) RetrieveBySessionID(_ co
 	return subscriptions, nil
 }
 
-func (s *InMemoryResourceModificationSubscriptionStore) RetrieveUnhealthyURIBySessionID(_ context.Context, sessionID string) ([]*url.URL, error) {
+func (s *InMemoryResourceModificationSubscriptionStore) RetrieveUnhealthyURIBySessionID(
+	_ context.Context,
+	sessionID string,
+) ([]*url.URL, error) {
 	untypedSessionSubscriptions, ok := s.subscriptions.Load(sessionID)
 	if !ok {
 		return nil, fmt.Errorf("session subscription '%s' not found", sessionID)
@@ -238,7 +267,10 @@ func (s *InMemoryResourceModificationSubscriptionStore) RetrieveUnhealthyURIBySe
 	return uris, nil
 }
 
-func (s *InMemoryResourceModificationSubscriptionStore) DeleteBySessionID(_ context.Context, sessionID string) error {
+func (s *InMemoryResourceModificationSubscriptionStore) DeleteBySessionID(
+	_ context.Context,
+	sessionID string,
+) error {
 	untypedSessionSubscriptions, ok := s.subscriptions.LoadAndDelete(sessionID)
 	if !ok {
 		return fmt.Errorf("session subscription '%s' not found", sessionID)
@@ -306,7 +338,11 @@ type resourcesSubscribeManager struct {
 	store ResourceModificationSubscriptionStore
 }
 
-func (m *resourcesSubscribeManager) SubscribeToResourceModification(ctx context.Context, sessionID string, resourceURI *url.URL) (Subscription, error) {
+func (m *resourcesSubscribeManager) SubscribeToResourceModification(
+	ctx context.Context,
+	sessionID string,
+	resourceURI *url.URL,
+) (Subscription, error) {
 	subscription, _ := m.store.Get(ctx, sessionID, resourceURI)
 	if subscription != nil {
 		return subscription, nil
@@ -314,14 +350,21 @@ func (m *resourcesSubscribeManager) SubscribeToResourceModification(ctx context.
 	return m.store.Issue(ctx, sessionID, resourceURI)
 }
 
-func (m *resourcesSubscribeManager) UnsubscribeToResourceModification(ctx context.Context, sessionID string, resourceURI *url.URL) error {
+func (m *resourcesSubscribeManager) UnsubscribeToResourceModification(
+	ctx context.Context,
+	sessionID string,
+	resourceURI *url.URL,
+) error {
 	if err := m.store.Delete(ctx, sessionID, resourceURI); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *resourcesSubscribeManager) UnhealthSubscriptions(ctx context.Context, sessionID string) ([]*url.URL, error) {
+func (m *resourcesSubscribeManager) UnhealthSubscriptions(
+	ctx context.Context,
+	sessionID string,
+) ([]*url.URL, error) {
 	return m.store.RetrieveUnhealthyURIBySessionID(ctx, sessionID)
 }
 
@@ -387,7 +430,10 @@ type resourceListChangeSubscriptionManager struct {
 	store ResourceListChangeSubscriptionStore
 }
 
-func (m *resourceListChangeSubscriptionManager) SubscribeToResourceListChanges(ctx context.Context, sessionID string) (Subscription, error) {
+func (m *resourceListChangeSubscriptionManager) SubscribeToResourceListChanges(
+	ctx context.Context,
+	sessionID string,
+) (Subscription, error) {
 	subscription, err := m.store.Get(ctx, sessionID)
 	if err == nil {
 		return subscription, nil
@@ -395,14 +441,20 @@ func (m *resourceListChangeSubscriptionManager) SubscribeToResourceListChanges(c
 	return m.store.Issue(ctx, sessionID)
 }
 
-func (m *resourceListChangeSubscriptionManager) UnsubscribeToResourceListChanges(ctx context.Context, sessionID string) error {
+func (m *resourceListChangeSubscriptionManager) UnsubscribeToResourceListChanges(
+	ctx context.Context,
+	sessionID string,
+) error {
 	if err := m.store.Delete(ctx, sessionID); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *resourceListChangeSubscriptionManager) Health(ctx context.Context, sessionID string) (bool, error) {
+func (m *resourceListChangeSubscriptionManager) Health(
+	ctx context.Context,
+	sessionID string,
+) (bool, error) {
 	subscription, _ := m.store.Get(ctx, sessionID)
 	if subscription != nil {
 		return false, ErrResourceListChangeSubscriptionNotFound

@@ -3,8 +3,9 @@ package qilin
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type SessionStore interface {
@@ -82,12 +83,16 @@ func (s *InMemorySessionStore) Delete(_ context.Context, sessionID string) (err 
 	return session.ctx.Err()
 }
 
-func (s *InMemorySessionStore) Context(_ context.Context, sessionID string) (sessionCtx context.Context, err error) {
+func (s *InMemorySessionStore) Context(
+	_ context.Context,
+	sessionID string,
+) (sessionCtx context.Context, err error) {
 	v, ok := s.sessions.Load(sessionID)
 	if !ok {
 		return nil, fmt.Errorf("session '%s' not found", sessionID)
 	}
 	session := v.(*stateFullSession)
+	//nolint:staticcheck
 	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	return context.WithValue(session.ctx, struct{}{}, struct{}{}), nil
 }

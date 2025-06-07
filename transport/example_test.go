@@ -1,9 +1,10 @@
 package transport_test
 
 import (
+	"net"
+
 	"github.com/miyamo2/qilin"
 	"github.com/miyamo2/qilin/transport"
-	"net"
 )
 
 func ExampleNewStreamable() {
@@ -40,7 +41,10 @@ func ExampleNewStreamable_withAuthorizer() {
 
 func ExampleNewStreamable_withAccessControlAllowOrigin() {
 	streamable := transport.NewStreamable(
-		transport.StreamableWithAccessControlAllowOrigin([]string{"https://example.com", "https://*.example.com"}))
+		transport.StreamableWithAccessControlAllowOrigin(
+			[]string{"https://example.com", "https://*.example.com"},
+		),
+	)
 
 	q := qilin.New("example")
 
@@ -58,7 +62,10 @@ func ExampleNewStreamable_withAccessControlAllowMethods() {
 
 func ExampleNewStreamable_withAccessControlAllowHeaders() {
 	streamable := transport.NewStreamable(
-		transport.StreamableWithAccessControlAllowHeaders([]string{"Content-Type", "Authorization", transport.MCPSessionID}))
+		transport.StreamableWithAccessControlAllowHeaders(
+			[]string{"Content-Type", "Authorization", transport.MCPSessionID},
+		),
+	)
 
 	q := qilin.New("example")
 	q.Start(qilin.StartWithListener(streamable))
@@ -84,7 +91,10 @@ func ExampleStreamableWithAddress() {
 
 func ExampleStreamableWithAccessControlAllowOrigin() {
 	streamable := transport.NewStreamable(
-		transport.StreamableWithAccessControlAllowOrigin([]string{"https://example.com", "https://*.example.com"}))
+		transport.StreamableWithAccessControlAllowOrigin(
+			[]string{"https://example.com", "https://*.example.com"},
+		),
+	)
 
 	q := qilin.New("example")
 
@@ -102,7 +112,10 @@ func ExampleStreamableWithAccessControlAllowMethods() {
 
 func ExampleStreamableWithAccessControlAllowHeaders() {
 	streamable := transport.NewStreamable(
-		transport.StreamableWithAccessControlAllowHeaders([]string{"Content-Type", "Authorization", transport.MCPSessionID}))
+		transport.StreamableWithAccessControlAllowHeaders(
+			[]string{"Content-Type", "Authorization", transport.MCPSessionID},
+		),
+	)
 
 	q := qilin.New("example")
 

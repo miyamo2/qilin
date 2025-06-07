@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	internaltransport "github.com/miyamo2/qilin/internal/transport"
-	"golang.org/x/exp/jsonrpc2"
 	"io"
 	"log/slog"
 	"net"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	internaltransport "github.com/miyamo2/qilin/internal/transport"
+	"golang.org/x/exp/jsonrpc2"
 )
 
 // compatibility check
@@ -37,7 +38,15 @@ type Streamable struct {
 var (
 	defaultAccessControlAllowOrigin  = []string{"*"}
 	defaultAccessControlAllowMethods = []string{"POST", "GET", "OPTIONS", "DELETE"}
-	defaultAccessControlAllowHeaders = []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", MCPSessionID}
+	defaultAccessControlAllowHeaders = []string{
+		"Accept",
+		"Content-Type",
+		"Content-Length",
+		"Accept-Encoding",
+		"X-CSRF-Token",
+		"Authorization",
+		MCPSessionID,
+	}
 )
 
 // Reader See: jsonrpc2.Framer#Reader
@@ -114,7 +123,7 @@ func (s *Streamable) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		cancel:        cancel,
 	}
 	context.AfterFunc(ctx, func() {
-		rwc.Close()
+		_ = rwc.Close()
 	})
 	s.rwc <- rwc
 	<-ctx.Done()
@@ -289,8 +298,13 @@ func (s *StreamableReadWriteCloser) Write(p []byte) (n int, err error) {
 			return 0, err
 		}
 	default:
-		defer s.Close()
+		defer func() {
+			_ = s.Close()
+		}()
 		n, err = s.w.Write(p)
+		if err != nil {
+			return 0, err
+		}
 	}
 	s.flusher.Flush()
 	return
@@ -300,7 +314,7 @@ func (s *StreamableReadWriteCloser) Write(p []byte) (n int, err error) {
 func (s *StreamableReadWriteCloser) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
-		s.r.Close()
+		_ = s.r.Close()
 		s.cancel()
 		s.flusher.Flush()
 		err = s.r.Close()
@@ -328,14 +342,14 @@ func (s *StreamableReadWriteCloser) SwitchStreamConnection(keepAlive time.Durati
 	s.w.Header().Set("cache-control", "no-cache")
 	s.w.Header().Set("connection", "keep-alive")
 	s.w.Header().Set("keep-alive", fmt.Sprintf("timeout=%d", int(keepAlive.Seconds())))
-	s.Probe()
+	_ = s.Probe()
 	go func() {
 		ticker := time.NewTicker(time.Duration(float64(keepAlive) * 0.8))
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				s.Probe()
+				_ = s.Probe()
 			case <-s.ctx.Done():
 				return
 			}
@@ -354,6 +368,7 @@ func (s *StreamableReadWriteCloser) Probe() error {
 
 // Context returns the context of the StreamableReadWriteCloser.
 func (s *StreamableReadWriteCloser) Context() context.Context {
+	//nolint:staticcheck
 	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	ctx := context.WithValue(s.ctx, struct{}{}, struct{}{})
 	return ctx
@@ -380,7 +395,10 @@ func (s *streamableWriter) Write(ctx context.Context, message jsonrpc2.Message) 
 }
 
 // newStreamableWriter returns a new streamable writer that uses the provided writer function.
-func newStreamableWriter(w io.Writer, writerFunc func(rw io.Writer) jsonrpc2.Writer) jsonrpc2.Writer {
+func newStreamableWriter(
+	w io.Writer,
+	writerFunc func(rw io.Writer) jsonrpc2.Writer,
+) jsonrpc2.Writer {
 	return &streamableWriter{
 		writerFunc: writerFunc,
 		w:          w,
