@@ -21,7 +21,12 @@ https://github.com/uber-go/guide/blob/master/style.md
 │       │   └── api/weather.go              # API client for weather service
 │       └── go.mod                          # Go module file
 ├── internal/                               # Internal packages
-│   └── transport/transport.go              # Transport interfaces
+│   └── transport/transport.go              # Internal logic for transport packages
+├── transport/
+│   ├── example_test.go                     # Example Code for transport
+│   ├── stdio.go                            # Stdio transport
+│   ├── streamable.go                       # Streamable HTTP transport
+│   └── transport.go                        # Shared logic for transport packages
 ├── context.go                              # ToolContext, ResourceContext, PromptContext etc.
 ├── context_test.go                         # test for context.go
 ├── errors.go                               # Error
