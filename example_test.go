@@ -211,7 +211,7 @@ func ExampleQilin_Start_withStreamable() {
 	q.Start(qilin.StartWithListener(listener))
 }
 
-func ExampleQilin_StartWithListener_withStdio() {
+func ExampleStartWithListener_withStdio() {
 	q := qilin.New("calc")
 
 	// add a tool, resource, or other components here
@@ -220,7 +220,7 @@ func ExampleQilin_StartWithListener_withStdio() {
 	q.Start(qilin.StartWithListener(listener))
 }
 
-func ExampleQilin_StartWithListener_withStreamable() {
+func ExampleStartWithListener_withStreamable() {
 	q := qilin.New("calc")
 
 	// add a tool, resource, or other components here
@@ -229,7 +229,7 @@ func ExampleQilin_StartWithListener_withStreamable() {
 	q.Start(qilin.StartWithListener(listener))
 }
 
-func ExampleQilin_StartWithContext() {
+func ExampleStartWithContext() {
 	q := qilin.New("calc")
 
 	// add a tool, resource, or other components here
