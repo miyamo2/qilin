@@ -1,7 +1,12 @@
 package qilin_test
 
 import (
+	"context"
+	"fmt"
 	"github.com/miyamo2/qilin"
+	"github.com/miyamo2/qilin/transport"
+	"net/url"
+	"strings"
 )
 
 type Req struct {
@@ -26,6 +31,22 @@ func Example() {
 	q.Start() // listen and serve on stdio
 }
 
+type authorizer struct {
+	transport.Authorizer
+}
+
+func Example_withAuthorization() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
+	// Create streamable transport with an authorizer
+	streamable := transport.NewStreamable(
+		transport.StreamableWithAuthorizer(&authorizer{}))
+
+	q.Start(qilin.StartWithListener(streamable))
+}
+
 func ExampleQilin_Tool() {
 	q := qilin.New("calc")
 	q.Tool("add", (*Req)(nil), func(c qilin.ToolContext) error {
@@ -36,7 +57,6 @@ func ExampleQilin_Tool() {
 		}
 		return c.JSON(res)
 	})
-	q.Start() // listen and serve on stdio
 }
 
 func ExampleToolWithDescription() {
@@ -49,7 +69,6 @@ func ExampleToolWithDescription() {
 		}
 		return c.JSON(res)
 	}, qilin.ToolWithDescription("add y to x"))
-	q.Start() // listen and serve on stdio
 }
 
 func ExampleToolWithAnnotations() {
@@ -68,7 +87,6 @@ func ExampleToolWithAnnotations() {
 		IdempotentHint:  false,
 		OpenWorldHint:   false,
 	}))
-	q.Start() // listen and serve on stdio
 }
 
 func ExampleToolWithMiddleware() {
@@ -86,7 +104,6 @@ func ExampleToolWithMiddleware() {
 			return next(c)
 		}
 	}))
-	q.Start() // listen and serve on stdio
 }
 
 type Employee struct {
@@ -104,7 +121,6 @@ func ExampleQilin_Resource() {
 		}
 		return c.JSON(res)
 	})
-	q.Start() // listen and serve on stdio
 }
 
 func ExampleResourceWithDescription() {
@@ -117,7 +133,6 @@ func ExampleResourceWithDescription() {
 		}
 		return c.JSON(res)
 	}, qilin.ResourceWithDescription("Get employee by ID"))
-	q.Start() // listen and serve on stdio
 }
 
 func ExampleResourceWithMimeType() {
@@ -130,5 +145,95 @@ func ExampleResourceWithMimeType() {
 		}
 		return c.JSON(res)
 	}, qilin.ResourceWithMimeType("application/json"))
+}
+
+func ExampleQilin_ResourceChangeObserver() {
+	q := qilin.New("employee_management")
+	q.ResourceChangeObserver("example://example.com/{id}", func(c qilin.ResourceChangeContext) {
+		// Handle resource change
+		return
+	})
+}
+
+func ExampleQilin_ResourceList() {
+	q := qilin.New("employee_management")
+	q.ResourceList(func(c qilin.ResourceListContext) error {
+		i := 1
+		for _, v := range c.Resources() {
+			uri, err := url.Parse(
+				strings.Replace((*url.URL)(v.URI).String(), "{id}", fmt.Sprintf("%d", i), 1))
+			if err != nil {
+				return err
+			}
+			c.SetResource("example://example.com/1", qilin.Resource{
+				URI:         (*qilin.ResourceURI)(uri),
+				Name:        v.Name,
+				Description: fmt.Sprintf("Employee %d", i),
+				MimeType:    "application/json",
+			})
+			i++
+		}
+		return nil
+	})
+}
+
+func ExampleQilin_ResourceListChangeObserver() {
+	q := qilin.New("employee_management")
+	q.ResourceListChangeObserver(func(c qilin.ResourceListChangeContext) {
+		// Handle resource list change
+		return
+	})
+}
+
+func ExampleQilin_Start() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
 	q.Start() // listen and serve on stdio
+}
+
+func ExampleQilin_Start_withStdio() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
+	listener := transport.NewStdio(context.Background())
+	q.Start(qilin.StartWithListener(listener))
+}
+
+func ExampleQilin_Start_withStreamable() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
+	listener := transport.NewStreamable()
+	q.Start(qilin.StartWithListener(listener))
+}
+
+func ExampleQilin_StartWithListener_withStdio() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
+	listener := transport.NewStdio(context.Background())
+	q.Start(qilin.StartWithListener(listener))
+}
+
+func ExampleQilin_StartWithListener_withStreamable() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
+	listener := transport.NewStreamable()
+	q.Start(qilin.StartWithListener(listener))
+}
+
+func ExampleQilin_StartWithContext() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
+	ctx := context.Background()
+	q.Start(qilin.StartWithContext(ctx))
 }
