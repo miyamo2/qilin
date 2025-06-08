@@ -1,0 +1,59 @@
+---
+title: Welcome to Qilin
+description: Get started building your MCP Server with Qilin.
+template: splash
+hero:
+  tagline: The easy-peasy mcp server framework for Go.
+  image:
+    file: ../../assets/logo.webp
+  actions:
+    - text: Get Started
+      link: /qilin/introduction
+      icon: right-arrow
+    - text: Download
+      link: https://github.com/miyamo2/qilin/releases
+      icon: external
+      variant: minimal
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import {Card, CardGrid} from '@astrojs/starlight/components';
+
+## What is Qilin?
+
+Qilin is a framework for building MCP (Model Context Protocol) servers in Go.
+
+<CardGrid>
+	<Card title="Impl MCP server in a minute" icon="seti:clock">
+        `qilin.New().Start()` launches an MCP server on STDIN/STDOUT.
+	</Card>
+	<Card title="Familiar look and feel" icon="heart">
+        Tool/Resource Handlers inspired by Go's well-known web application framework. Developers familiar with them will feel right at home.
+	</Card>
+	<Card title="Streamable HTTP" icon="right-caret">
+        Supports Streamable HTTP transport.
+	</Card>
+</CardGrid>

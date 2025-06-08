@@ -37,34 +37,50 @@ go get github.com/miyamo2/qilin
 package main
 
 import (
-  "github.com/miyamo2/qilin"
+	"fmt"
+	"github.com/miyamo2/qilin"
+	"maps"
 )
 
-type Req struct {
-  X float64 `json:"x" jsonschema:"title=X"`
-  Y float64 `json:"y" jsonschema:"title=Y"`
+type OrderBeerRequest struct {
+	BeerName string `json:"beer_name" jsonschema:"title=Beer Name"`
+	Quantity int    `json:"quantity" jsonschema:"title=Quantity of Beers"`
 }
 
-type Res struct {
-  Result float64 `json:"result"`
+type OrderBeerResponse struct {
+	Amount float64 `json:"amount"`
+}
+
+var beers = map[string]string{
+	"IPA":   "A hoppy beer with a bitter finish.",
+	"Stout": "A dark beer with a rich, roasted flavor.",
+	"Lager": "A light, crisp beer with a smooth finish.",
 }
 
 func main() {
-  q := qilin.New("calc")
+	q := qilin.New("beer hall", qilin.WithVersion("v0.1.0"))
 
-  q.Tool("add", (*Req)(nil), func(c qilin.ToolContext) error {
-    var req Req
-    c.Bind(&req)
-    return c.JSON(Res{Result: req.X + req.Y})
-  })
+	q.Resource("menu_list",
+		"resources://beer_list",
+		func(c qilin.ResourceContext) error {
+			return c.JSON(maps.Keys(beers))
+		})
 
-  q.Tool("sub", (*Req)(nil), func(c qilin.ToolContext) error {
-    var req Req
-    c.Bind(&req)
-    return c.JSON(Res{Result: req.X - req.Y})
-  }, qilin.ToolWithDescription("subtract y from x"))
-
-  q.Start() // listens & serves on stdio
+	q.Tool("order_beer",
+		(*OrderBeerRequest)(nil),
+		func(c qilin.ToolContext) error {
+			var req OrderBeerRequest
+			if err := c.Bind(&req); err != nil {
+				return err
+			}
+			_, ok := beers[req.BeerName]
+			if !ok {
+				return fmt.Errorf("beer %s not found", req.BeerName)
+			}
+			amount := 8 * req.Quantity // Assume unit cost of all beers is $8.00.
+			return c.JSON(OrderBeerResponse{Amount: float64(amount)})
+		})
+	q.Start() // listen on stdio
 }
 ```
 
