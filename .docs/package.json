@@ -2,10 +2,12 @@
   "name": "docs",
   "type": "module",
   "version": "0.0.1",
+  "homepage": "https://miyamo2.github.io/qilin",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
+    "deploy": "gh-pages -d dist -b gh-pages",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -15,5 +17,8 @@
     "astro": "^5.6.1",
     "sharp": "^0.34.0",
     "unplugin-icons": "^22.1.0"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
   }
 }

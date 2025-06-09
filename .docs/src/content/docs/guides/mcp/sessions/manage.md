@@ -22,6 +22,9 @@ When a client connects to your MCP server, a session is automatically created an
 If you need to customize how sessions are stored (for example, to persist sessions to a database), you can implement the `SessionStore` interface and provide it to your Qilin instance:
 
 ```go
+// compatibility check
+var _ qilin.SessionStore = &MyCustomSessionStore{}
+
 type MyCustomSessionStore struct {
     // Your custom fields here
 }
