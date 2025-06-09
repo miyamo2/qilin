@@ -27,8 +27,8 @@ import (
 )
 
 type OrderBeerRequest struct {
-        BeerName string `json:"beer_name" jsonschema:"title=Beer Name"`
-        Quantity int      `json:"quantity" jsonschema:"title=Quantity of Beers"`
+    BeerName string `json:"beer_name" jsonschema:"title=Beer Name"`
+    Quantity int    `json:"quantity"  jsonschema:"title=Quantity of Beers"`
 }
 
 type OrderBeerResponse struct {
@@ -36,9 +36,9 @@ type OrderBeerResponse struct {
 }
 
 var beers = map[string]string{
-        "IPA":     "A hoppy beer with a bitter finish.",
-        "Stout": "A dark beer with a rich, roasted flavor.",
-        "Lager": "A light, crisp beer with a smooth finish.",
+    "IPA":   "A hoppy beer with a bitter finish.",
+    "Stout": "A dark beer with a rich, roasted flavor.",
+    "Lager": "A light, crisp beer with a smooth finish.",
 }
 
 func main() {
