@@ -20,6 +20,9 @@ export default defineConfig({
       expressiveCode: {
         themes: ['github-dark', 'github-light'],
       },
+      editLink: {
+        baseUrl: 'https://github.com/miyamo2/qilin/edit/main/.docs/',
+      },
       lastUpdated: true,
       sidebar: [
         {
