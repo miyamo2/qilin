@@ -8,10 +8,7 @@ on:
       - ".docs/**"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: write-all
 
 jobs:
   build:
