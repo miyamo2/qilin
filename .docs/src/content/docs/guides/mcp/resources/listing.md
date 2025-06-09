@@ -14,7 +14,7 @@ By default, Qilin provides a built-in resource list handler that automatically l
 If you are using [resource templates](/qilin/guides/mcp/resources/reading/#dynamic-uri-resource-resource-template), you must register a `ResourceListHandler` using the `q.ResourceList` method.
 This is necessary because the [default resource list handler](https://pkg.go.dev/github.com/miyamo2/qilin#DefaultResourceListHandler) ignores resource templates.
 
-```go
+```go /c.SetResource/ /qilin.DefaultResourceListHandler/
 employees := []Employee{
     {ID: "1", Name: "Alice"},
     {ID: "2", Name: "Bob"},

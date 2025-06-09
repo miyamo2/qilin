@@ -14,7 +14,7 @@ The Streamable HTTP transport is particularly useful when:
 
 To use the Streamable HTTP transport, you need to create a new streamable listener and pass it to the `Start` method of your Qilin instance. Here's how to set it up:
 
-```go
+```go /transport.NewStreamable/
 q := qilin.New("beer hall")
 listener := transport.NewStreamable()
 q.Start(qilin.StartWithListener(listener))
@@ -24,11 +24,11 @@ q.Start(qilin.StartWithListener(listener))
 
 By default, the Streamable HTTP transport listens on port 3001. You can customize the port or address settings using options when creating the listener.
 
-```go
+```go /transport.StreamableWithAddress/
 listener := transport.NewStreamable(transport.StreamableWithAddress("127.0.0.1:0"))
 ```
 
-```go
+```go /transport.StreamableWithNetListener/
 netListener, err := net.Listen("tcp", "127.0.0.1:0")
 if err != nil {
     panic(err)
@@ -40,7 +40,7 @@ listener := transport.NewStreamable(transport.StreamableWithNetListener(netListe
 
 The Streamable HTTP transport supports authorization, allowing you to control access to your MCP server. To implement authorization, you need to create an authorizer that implements the `transport.Authorizer` interface:
 
-```go
+```go /transport.Authorizer/
 var _ transport.Authorizer = &authorizer{}
 
 type authorizer struct{}
@@ -55,7 +55,7 @@ func (a *authorizer) Authorize(credential string) error {
 
 Once you've created your authorizer, you can attach it to the Streamable HTTP transport using the `StreamableWithAuthorizer` option:
 
-```go
+```go /transport.StreamableWithAuthorizer/
 streamable := transport.NewStreamable(transport.StreamableWithAuthorizer(&authorizer{}))
 ```
 

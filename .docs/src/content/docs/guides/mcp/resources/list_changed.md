@@ -22,7 +22,7 @@ q.ResourceListChangeObserver(func(c qilin.ResourceListChangeContext) {
 
 When your application detects that the resource list has changed (e.g., when resources are added or removed), you can notify clients by calling the `Publish` method on the `ResourceListChangeContext`:
 
-```go
+```go /c.Publish/
 func ResourceListChangeObserver(c qilin.ResourceListChangeContext) {
     // Monitor for changes to the resource list
     for t := range time.Tick(2 * time.Minute) {

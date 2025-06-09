@@ -12,7 +12,7 @@ To register a resource change observer in Qilin, you use the `ResourceChangeObse
 1. The URI pattern of the resources to observe (can include placeholders like `{id}`)
 2. A handler function that monitors resource changes.
 
-```go
+```go 
 q.ResourceChangeObserver("example://example.com/{id}", func(c qilin.ResourceChangeContext) {
     // Handle resource change notification
     return
@@ -23,7 +23,7 @@ q.ResourceChangeObserver("example://example.com/{id}", func(c qilin.ResourceChan
 
 When your application detects that a resource has changed, you can notify clients by calling the `Publish` method on the `ResourceChangeContext`:
 
-```go
+```go /c.Publish/
 func WeatherForecastChangeObserver(c qilin.ResourceChangeContext) {
     for t := range time.Tick(time.Minute) {
         select {

@@ -19,7 +19,7 @@ q.Start() // Uses Stdio transport by default
 
 If you need to specify the Stdio transport explicitly or provide a custom context, you can do so with the following code:
 
-```go
+```go /transport.NewStdio/
 q := qilin.New("beer hall")
 listener := transport.NewStdio(context.Background())
 q.Start(qilin.StartWithListener(listener))

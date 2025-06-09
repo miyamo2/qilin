@@ -23,7 +23,7 @@ q.Tool("tool name", (*RequestSchema)(nil),
 
 You can bind request data using the `c.Bind()` method. This method automatically decodes incoming request data into parameters.
 
-```go
+```go /c.Bind/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -43,7 +43,7 @@ Qilin provides several methods for returning different types of content from you
 
 `c.JSON(i any)` - Returns JSON-formatted data
 
-```go
+```go /c.JSON/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -63,7 +63,7 @@ func(c qilin.ToolContext) error {
 
 `c.String(s string)` - Returns plain text content
 
-```go
+```go /c.String/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -81,7 +81,7 @@ func(c qilin.ToolContext) error {
 
 `c.Image(data []byte, mimeType string)` - Returns image data with a specified MIME type
 
-```go
+```go /c.Image/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -101,7 +101,7 @@ func(c qilin.ToolContext) error {
 
 `c.Audio(data []byte, mimeType string)` - Returns audio data with a specified MIME type
 
-```go
+```go /c.Audio/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -121,7 +121,7 @@ func(c qilin.ToolContext) error {
 
 `c.JSONResource(uri *url.URL, i any, mimeType string)` - Returns JSON data as an embedded resource with a URI
 
-```go
+```go /c.JSONResource/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -150,7 +150,7 @@ func(c qilin.ToolContext) error {
 
 `c.StringResource(uri *url.URL, s string, mimeType string)` - Returns plain text data as an embedded resource with a URI
 
-```go
+```go /c.StringResource/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -178,7 +178,7 @@ func(c qilin.ToolContext) error {
 
 `c.BinaryResource(uri *url.URL, data []byte, mimeType string)` - Returns binary data as an embedded resource with a URI
 
-```go
+```go /c.BinaryResource/
 func(c qilin.ToolContext) error {
     var req Req
     if err := c.Bind(&req); err != nil {
@@ -208,7 +208,7 @@ You can provide more detailed tools information to clients by specifying options
 
 ### With Description
 
-```go
+```go /qilin.ToolWithDescription/
 q.Tool(
     "example_tool",
     (*Req)(nil),
@@ -226,7 +226,7 @@ Tool annotations provide additional metadata about your tool that can help clien
 
 A user-friendly name for the tool that may be displayed in user interfaces.
 
-```go
+```go /Title: "Get Weather Forecast"/
 q.Tool(
     "fetch_weather_data",
     (*WeatherRequest)(nil),
@@ -241,7 +241,7 @@ q.Tool(
 
 Indicates that this tool only reads data and doesn't modify any state (safe to call repeatedly).
 
-```go
+```go /ReadOnlyHint: true/
 q.Tool(
     "get_user_profile",
     (*UserProfileRequest)(nil),
@@ -256,7 +256,7 @@ q.Tool(
 
 Indicates that this tool performs destructive operations that might be irreversible.
 
-```go
+```go /DestructiveHint: true/
 q.Tool(
     "delete_account",
     (*DeleteAccountRequest)(nil),
@@ -271,7 +271,7 @@ q.Tool(
 
 Indicates that calling this tool multiple times with the same parameters will produce the same result.
 
-```go
+```go /IdempotentHint: true/
 q.Tool(
     "update_user_preferences",
     (*UserPreferencesRequest)(nil),
@@ -286,7 +286,7 @@ q.Tool(
 
 Indicates that this tool interacts with external systems or resources.
 
-```go
+```go /OpenWorldHint: true/
 q.Tool(
     "search_web",
     (*WebSearchRequest)(nil),

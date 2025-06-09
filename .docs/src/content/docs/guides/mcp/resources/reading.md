@@ -48,7 +48,7 @@ Dynamic resource URIs allow you to define parameterized endpoints with placehold
 
 You can access these parameters in your handler by using `c.Param("id")`, as shown below.
 
-```go
+```go /c.Param/ /{id}/
 q.Resource(
     "get_employee",
     "example://example.com/{id}", 
@@ -77,13 +77,11 @@ Qilin supports multiple content types for resources, allowing you to return diff
 
 `c.JSON(i any)` - Return a JSON content.
 
-```go
+```go /c.JSON/
 func(c qilin.ResourceContext) error {
-    res := map[string]string{
-        "id":      c.Param("id"),
+    return c.JSON(map[string]string{
         "name":  "Bob",
-    }
-    return c.JSON(res)
+    })
 }
 ```
 
@@ -91,7 +89,7 @@ func(c qilin.ResourceContext) error {
 
 `c.String(s string)` - Return plain text content.
 
-```go
+```go /c.String/
 func(c qilin.ResourceContext) error {
     return c.String("Hello, World!")
 }
@@ -101,7 +99,7 @@ func(c qilin.ResourceContext) error {
 
 `c.Blob(data []byte, mimeType string)` - Return binary data with a specified MIME type.
 
-```go
+```go /c.Blob/
 func(c qilin.ResourceContext) error {
     data, err := os.ReadFile("image.png")
     if err != nil {
@@ -119,13 +117,13 @@ You can provide more detailed resource information to clients by specifying opti
 
 Adding a description helps clients understand the purpose of the resource.
 
-```go
+```go /qilin.ResourceWithDescription/
 q.Resource(
     "get_employee",
     "example://example.com/{id}",
     func(c qilin.ResourceContext) error {
         res := map[string]string{
-            "id":      c.Param("id"),
+            "id":    c.Param("id"),
             "name":  "Bob",
         }
         return c.JSON(res)
@@ -136,13 +134,13 @@ q.Resource(
 
 Specifying the MIME Type helps clients understand the format of the resource data.
 
-```go
+```go /qilin.ResourceWithMimeType/
 q.Resource(
     "get_employee",
     "example://example.com/{id}",
     func(c qilin.ResourceContext) error {
         res := map[string]string{
-            "id":      c.Param("id"),
+            "id":    c.Param("id"),
             "name":  "Bob",
         }
         return c.JSON(res)
