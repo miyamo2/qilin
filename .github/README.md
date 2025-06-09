@@ -44,7 +44,7 @@ import (
 
 type OrderBeerRequest struct {
 	BeerName string `json:"beer_name" jsonschema:"title=Beer Name"`
-	Quantity int    `json:"quantity" jsonschema:"title=Quantity of Beers"`
+	Quantity int    `json:"quantity"  jsonschema:"title=Quantity of Beers"`
 }
 
 type OrderBeerResponse struct {
