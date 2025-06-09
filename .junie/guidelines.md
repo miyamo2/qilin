@@ -7,6 +7,8 @@ https://github.com/uber-go/guide/blob/master/style.md
 
 ## Project Structure
 
+## Project Structure
+
 ```text
 .
 ├── .assets/                                # Assets for the project
@@ -86,5 +88,6 @@ directory tree under `.docs`
 ## Reference
 
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/specification/latest)
+- [Qilin User Guide](https://miyamo2.github.io/qilin/)
 - [DeepWiki](https://deepwiki.com/miyamo2/qilin)
 - [GoDoc](https://pkg.go.dev/github.com/miyamo2/qilin)

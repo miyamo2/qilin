@@ -84,6 +84,8 @@ func main() {
 }
 ```
 
+For more detailed usage, please refer to the [Qilin User Guide](https://miyamo2.github.io/qilin/).
+
 ## 🛤 Roadmap
 
 ### Transports
