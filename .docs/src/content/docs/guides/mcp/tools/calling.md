@@ -9,7 +9,7 @@ Calling Tools is a feature of the Model Context Protocol (MCP) that allows clien
 
 To register a tool, you use the `Tool` method on your Qilin instance. This method takes three required parameters:
 1. The name of the tool (a string)
-2. A pointer to a nil instance of the request type (used for schema generation)
+2. Typed-nil of the request type (used for schema generation)
 3. A handler function that processes the request and returns a response
 
 ```go
