@@ -28,9 +28,9 @@ jobs:
         run: npm run build
 
       - name: Deploy
-        working-directory: .docs
-        run: |
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          npm run deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/dist
+          publish_branch: gh-pages
           
