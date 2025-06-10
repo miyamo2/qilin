@@ -111,17 +111,42 @@ func (s *Stdio) Context() context.Context {
 	return ctx
 }
 
-type stdioOptions struct{}
+type stdioOptions struct {
+	in  io.ReadCloser
+	out io.WriteCloser
+}
 
 // StdioOption options for the Stdio listener.
 type StdioOption func(*stdioOptions)
 
+// StdioWithReadCloser setting the input stream for the Stdio listener.
+// mainly used for testing purposes.
+func StdioWithReadCloser(in io.ReadCloser) StdioOption {
+	return func(o *stdioOptions) {
+		o.in = in
+	}
+}
+
+// StdioWithWriteCloser setting the output stream for the Stdio listener.
+func StdioWithWriteCloser(out io.WriteCloser) StdioOption {
+	return func(o *stdioOptions) {
+		o.out = out
+	}
+}
+
 // NewStdio returns a new Stdio listener.
 func NewStdio(ctx context.Context, options ...StdioOption) *Stdio {
+	opts := &stdioOptions{
+		in:  os.Stdin,
+		out: os.Stdout,
+	}
+	for _, opt := range options {
+		opt(opts)
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Stdio{
-		in:     os.Stdin,
-		out:    os.Stdout,
+		in:     opts.in,
+		out:    opts.out,
 		ctx:    ctx,
 		cancel: cancel,
 	}
