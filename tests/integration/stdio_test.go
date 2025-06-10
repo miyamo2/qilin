@@ -3,12 +3,13 @@ package integration
 import (
 	"context"
 	"encoding/json"
-	"github.com/miyamo2/qilin"
-	"github.com/miyamo2/qilin/transport"
-	"github.com/stretchr/testify/suite"
 	"io"
 	"sync"
 	"testing"
+
+	"github.com/miyamo2/qilin"
+	"github.com/miyamo2/qilin/transport"
+	"github.com/stretchr/testify/suite"
 )
 
 type StdioTestSuite struct {

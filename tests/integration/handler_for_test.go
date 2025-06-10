@@ -2,10 +2,11 @@ package integration
 
 import (
 	"fmt"
-	"github.com/miyamo2/qilin"
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/miyamo2/qilin"
 )
 
 type Order struct {

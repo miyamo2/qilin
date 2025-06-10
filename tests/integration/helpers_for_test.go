@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"github.com/google/uuid"
-	"github.com/miyamo2/qilin"
-	"github.com/miyamo2/qilin/transport"
-	"github.com/stretchr/testify/require"
 	"io"
 	"iter"
 	"net/http"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/miyamo2/qilin"
+	"github.com/miyamo2/qilin/transport"
+	"github.com/stretchr/testify/require"
 )
 
 // JSONRPCRequest represents a JSON-RPC request.

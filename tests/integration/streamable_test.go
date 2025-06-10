@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/miyamo2/qilin"
-	"github.com/miyamo2/qilin/transport"
-	"github.com/stretchr/testify/suite"
 	"net"
 	"net/http"
 	"sync"
 	"testing"
+
+	"github.com/miyamo2/qilin"
+	"github.com/miyamo2/qilin/transport"
+	"github.com/stretchr/testify/suite"
 )
 
 type StreamableTestSuite struct {
