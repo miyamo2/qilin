@@ -632,6 +632,7 @@ type startOptions struct {
 	listener  jsonrpc2.Listener
 	framer    jsonrpc2.Framer
 	preempter jsonrpc2.Preempter
+	onWarm    []func()
 }
 
 // StartOption configures the startup settings for the Qilin instance
@@ -672,6 +673,15 @@ func StartWithPreempter(preempter jsonrpc2.Preempter) StartOption {
 	}
 }
 
+// StartWithReadySignal settings the channel to be notified when the server is ready.
+func StartWithReadySignal(ready chan struct{}) StartOption {
+	return func(o *startOptions) {
+		o.onWarm = append(o.onWarm, func() {
+			close(ready)
+		})
+	}
+}
+
 // Start starts Qilin app
 func (q *Qilin) Start(options ...StartOption) error {
 	if !q.startupMutex.TryLock() {
@@ -687,6 +697,15 @@ func (q *Qilin) Start(options ...StartOption) error {
 	for _, opt := range options {
 		opt(o)
 	}
+
+	if len(o.onWarm) != 0 {
+		context.AfterFunc(q.cold, func() {
+			for _, fn := range o.onWarm {
+				fn()
+			}
+		})
+	}
+
 	ctx, cancel := context.WithCancel(o.ctx)
 	defer cancel()
 	if o.listener == nil {

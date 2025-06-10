@@ -33,6 +33,8 @@ type Streamable struct {
 	allowCORSMethods string
 	allowCORSHeaders string
 	errCh            chan error
+	startOnce        sync.Once
+	mux              *http.ServeMux
 }
 
 var (
@@ -61,13 +63,19 @@ func (s *Streamable) Writer(rw io.Writer) jsonrpc2.Writer {
 
 // Accept See: jsonrpc2.Listener#Accept
 func (s *Streamable) Accept(ctx context.Context) (io.ReadWriteCloser, error) {
-	for {
-		select {
-		case rwc := <-s.rwc:
-			return internaltransport.NewQilinIO(rwc), nil
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+	s.startOnce.Do(func() {
+		go func() {
+			s.errCh <- http.Serve(s.netListener, s.mux)
+		}()
+	})
+	select {
+	case err := <-s.errCh:
+		s.Close()
+		return nil, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case rwc := <-s.rwc:
+		return internaltransport.NewQilinIO(rwc), nil
 	}
 }
 
@@ -220,7 +228,7 @@ func NewStreamable(options ...StreamableOption) *Streamable {
 
 	s := &Streamable{
 		netListener:      opts.netListener,
-		rwc:              make(chan *StreamableReadWriteCloser),
+		rwc:              make(chan *StreamableReadWriteCloser, 1),
 		allowCORSOrigin:  strings.Join(opts.accessControlAllowOrigin, ","),
 		allowCORSMethods: strings.Join(opts.accessControlAllowOriginMethods, ","),
 		allowCORSHeaders: strings.Join(opts.accessControlAllowOriginHeaders, ","),
@@ -229,14 +237,11 @@ func NewStreamable(options ...StreamableOption) *Streamable {
 		authorizer:       opts.authorizer,
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("OPTIONS /mcp", s.preflight)
-	mux.HandleFunc("GET /mcp", s.serveHTTP)
-	mux.HandleFunc("POST /mcp", s.serveHTTP)
+	s.mux = http.NewServeMux()
+	s.mux.HandleFunc("OPTIONS /mcp", s.preflight)
+	s.mux.HandleFunc("GET /mcp", s.serveHTTP)
+	s.mux.HandleFunc("POST /mcp", s.serveHTTP)
 
-	go func() {
-		s.errCh <- http.Serve(s.netListener, mux)
-	}()
 	return s
 }
 

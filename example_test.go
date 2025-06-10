@@ -238,3 +238,16 @@ func ExampleStartWithContext() {
 	ctx := context.Background()
 	q.Start(qilin.StartWithContext(ctx))
 }
+
+func ExampleStartWithReadySignal() {
+	q := qilin.New("calc")
+
+	// add a tool, resource, or other components here
+
+	ready := make(chan struct{}, 1)
+	q.Start(qilin.StartWithReadySignal(ready))
+
+	// Wait for the server to be ready
+	<-ready
+	fmt.Println("Server is ready")
+}
