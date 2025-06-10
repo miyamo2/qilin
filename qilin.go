@@ -673,7 +673,7 @@ func StartWithPreempter(preempter jsonrpc2.Preempter) StartOption {
 	}
 }
 
-// StartWithReadySignal settings the channel to be notified when the server is ready.
+// StartWithReadySignal sets the channel to be notified when the server is ready.
 func StartWithReadySignal(ready chan struct{}) StartOption {
 	return func(o *startOptions) {
 		o.onWarm = append(o.onWarm, func() {
