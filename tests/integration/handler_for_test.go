@@ -38,6 +38,28 @@ func OrderHandler(c qilin.ToolContext) error {
 	return c.JSON(OrderResponse{Amount: totalAmount})
 }
 
+type GreetingArgs struct {
+	Name string `json:"name"`
+}
+
+func GreetingPromptHandler(c qilin.PromptContext) error {
+	var args GreetingArgs
+	if err := c.Bind(&args); err != nil {
+		return err
+	}
+
+	name := args.Name
+	if name == "" {
+		name = "World"
+	}
+
+	if err := c.String("system", "You are a helpful assistant."); err != nil {
+		return err
+	}
+
+	return c.String("user", fmt.Sprintf("Hello, %s! How can I help you today?", name))
+}
+
 type Beer struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -113,6 +135,11 @@ func NewQilin(t *testing.T) *qilin.Qilin {
 
 	q := qilin.New("beer_hall", qilin.WithVersion("1.0.0"))
 	q.Tool("order", (*OrderRequest)(nil), OrderHandler)
+	q.Prompt("greeting", GreetingPromptHandler, 
+		qilin.PromptWithDescription("A greeting prompt that welcomes users"),
+		qilin.PromptWithArguments([]qilin.PromptArgument{
+			{Name: "name", Description: "The name of the person to greet", Required: false},
+		}))
 	q.Resource("beer_list", "beer://list", BeerListHandler)
 	q.Resource("beer_detail", "beer://detail/{id}", BeerDetailHandler)
 	q.ResourceList(ResourceListHandler)

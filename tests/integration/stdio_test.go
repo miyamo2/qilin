@@ -240,3 +240,166 @@ func (s *StdioTestSuite) TestStdioTestSuite_Ping_WithoutSession() {
 	s.Require().Nil(pingResponse.Result)
 	s.Require().Equal(-32001, pingResponse.Error.Code)
 }
+
+// TestStdioTestSuite_PromptsList tests successful prompts/list request
+func (s *StdioTestSuite) TestStdioTestSuite_PromptsList() {
+	// Initialize first
+	s.initializeConnection()
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodPromptsList, nil)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	_, err = s.clientWritePipe.Write(append(reqBytes, '\n'))
+	s.Require().NoError(err)
+
+	buf := make([]byte, 4096)
+	n, err := s.clientReadPipe.Read(buf)
+	s.Require().NoError(err)
+
+	response := JSONRPCResponseFromBytes(s.T(), buf[:n])
+
+	s.Require().Equal(req.ID, response.ID)
+	s.Require().Nil(response.Error)
+	s.Require().NotNil(response.Result)
+
+	var result map[string]any
+	err = json.Unmarshal(response.Result, &result)
+	s.Require().NoError(err)
+
+	prompts, ok := result["prompts"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(prompts, 1)
+
+	prompt := prompts[0].(map[string]any)
+	s.Require().Equal("greeting", prompt["name"])
+	s.Require().Equal("A greeting prompt that welcomes users", prompt["description"])
+
+	arguments, ok := prompt["arguments"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(arguments, 1)
+
+	arg := arguments[0].(map[string]any)
+	s.Require().Equal("name", arg["name"])
+	s.Require().Equal("The name of the person to greet", arg["description"])
+	s.Require().Equal(false, arg["required"])
+}
+
+// TestStdioTestSuite_PromptsGet tests successful prompts/get request
+func (s *StdioTestSuite) TestStdioTestSuite_PromptsGet() {
+	// Initialize first
+	s.initializeConnection()
+
+	params := map[string]any{
+		"name": "greeting",
+		"arguments": map[string]any{
+			"name": "Alice",
+		},
+	}
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodPromptsGet, params)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	_, err = s.clientWritePipe.Write(append(reqBytes, '\n'))
+	s.Require().NoError(err)
+
+	buf := make([]byte, 4096)
+	n, err := s.clientReadPipe.Read(buf)
+	s.Require().NoError(err)
+
+	response := JSONRPCResponseFromBytes(s.T(), buf[:n])
+
+	s.Require().Equal(req.ID, response.ID)
+	s.Require().Nil(response.Error)
+	s.Require().NotNil(response.Result)
+
+	var result map[string]any
+	err = json.Unmarshal(response.Result, &result)
+	s.Require().NoError(err)
+
+	s.Require().Equal("A greeting prompt that welcomes users", result["description"])
+
+	messages, ok := result["messages"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(messages, 2)
+
+	// Check system message
+	systemMsg := messages[0].(map[string]any)
+	s.Require().Equal("system", systemMsg["role"])
+	systemContent := systemMsg["content"].(map[string]any)
+	s.Require().Equal("text", systemContent["type"])
+	s.Require().Equal("You are a helpful assistant.", systemContent["text"])
+
+	// Check user message
+	userMsg := messages[1].(map[string]any)
+	s.Require().Equal("user", userMsg["role"])
+	userContent := userMsg["content"].(map[string]any)
+	s.Require().Equal("text", userContent["type"])
+	s.Require().Equal("Hello, Alice! How can I help you today?", userContent["text"])
+}
+
+// TestStdioTestSuite_PromptsGet_WithoutArguments tests prompts/get request without arguments
+func (s *StdioTestSuite) TestStdioTestSuite_PromptsGet_WithoutArguments() {
+	// Initialize first
+	s.initializeConnection()
+
+	params := map[string]any{
+		"name": "greeting",
+	}
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodPromptsGet, params)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	_, err = s.clientWritePipe.Write(append(reqBytes, '\n'))
+	s.Require().NoError(err)
+
+	buf := make([]byte, 4096)
+	n, err := s.clientReadPipe.Read(buf)
+	s.Require().NoError(err)
+
+	response := JSONRPCResponseFromBytes(s.T(), buf[:n])
+
+	s.Require().Equal(req.ID, response.ID)
+	s.Require().Nil(response.Error)
+	s.Require().NotNil(response.Result)
+
+	var result map[string]any
+	err = json.Unmarshal(response.Result, &result)
+	s.Require().NoError(err)
+
+	messages, ok := result["messages"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(messages, 2)
+
+	// Check user message uses default name
+	userMsg := messages[1].(map[string]any)
+	userContent := userMsg["content"].(map[string]any)
+	s.Require().Equal("Hello, World! How can I help you today?", userContent["text"])
+}
+
+// initializeConnection helper function to initialize connection
+func (s *StdioTestSuite) initializeConnection() {
+	params := map[string]any{
+		"protocolVersion": qilin.LatestProtocolVersion,
+		"capabilities": map[string]any{
+			"experimental": map[string]any{},
+		},
+		"clientInfo": map[string]any{
+			"name":    "test-client",
+			"version": "1.0.0",
+		},
+	}
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodInitialize, params)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	_, err = s.clientWritePipe.Write(append(reqBytes, '\n'))
+	s.Require().NoError(err)
+
+	buf := make([]byte, 4096)
+	_, err = s.clientReadPipe.Read(buf)
+	s.Require().NoError(err)
+}
