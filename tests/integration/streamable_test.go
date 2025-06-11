@@ -266,3 +266,56 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_MissingSessionHeader(
 
 	s.Require().Equal(http.StatusBadRequest, pingResp.StatusCode)
 }
+
+// TestStreamableTestSuite_DeleteSession tests successful deletion of a session
+func (s *StreamableTestSuite) TestStreamableTestSuite_DeleteSession() {
+	params := map[string]any{
+		"protocolVersion": qilin.LatestProtocolVersion,
+		"capabilities": map[string]any{
+			"experimental": map[string]any{},
+		},
+		"clientInfo": map[string]any{
+			"name":    "test-client",
+			"version": "1.0.0",
+		},
+	}
+	initReq := NewJSONRPCRequest(s.T(), qilin.MethodInitialize, params)
+	initReqBytes, err := json.Marshal(initReq)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	initResp, err := http.Post(url, "application/json", bytes.NewReader(initReqBytes))
+	s.Require().NoError(err)
+	defer initResp.Body.Close()
+
+	sessionID := SessionIDFromResponse(s.T(), initResp)
+	s.Require().NotEmpty(sessionID)
+
+	httpReq, err := http.NewRequestWithContext(s.T().Context(), "DELETE", url, nil)
+	s.Require().NoError(err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(transport.MCPSessionID, sessionID)
+
+	client := &http.Client{}
+
+	deleteResp, err := client.Do(httpReq)
+	s.Require().NoError(err)
+	defer deleteResp.Body.Close()
+
+	s.Require().Equal(http.StatusNoContent, deleteResp.StatusCode)
+
+	pingReq := NewJSONRPCRequest(s.T(), qilin.MethodPing, nil)
+	pingReqBytes, err := json.Marshal(pingReq)
+	s.Require().NoError(err)
+
+	httpReq, err = http.NewRequest("POST", url, bytes.NewReader(pingReqBytes))
+	s.Require().NoError(err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(transport.MCPSessionID, sessionID)
+
+	pingResp, err := client.Do(httpReq)
+	s.Require().NoError(err)
+	defer pingResp.Body.Close()
+
+	s.Require().Equal(http.StatusNotFound, pingResp.StatusCode)
+}
