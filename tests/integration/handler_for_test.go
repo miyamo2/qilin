@@ -137,9 +137,9 @@ func NewQilin(t *testing.T) *qilin.Qilin {
 	q.Tool("order", (*OrderRequest)(nil), OrderHandler)
 	q.Prompt("greeting", GreetingPromptHandler,
 		qilin.PromptWithDescription("A greeting prompt that welcomes users"),
-		qilin.PromptWithArguments([]qilin.PromptArgument{
-			{Name: "name", Description: "The name of the person to greet", Required: false},
-		}))
+		qilin.PromptWithArguments(
+			qilin.PromptArgument{Name: "name", Description: "The name of the person to greet", Required: false},
+		))
 	q.Resource("beer_list", "beer://list", BeerListHandler)
 	q.Resource("beer_detail", "beer://detail/{id}", BeerDetailHandler)
 	q.ResourceList(ResourceListHandler)

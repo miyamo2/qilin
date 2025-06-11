@@ -463,7 +463,7 @@ func PromptWithDescription(description string) PromptOption {
 }
 
 // PromptWithArguments configures the Prompt arguments.
-func PromptWithArguments(arguments []PromptArgument) PromptOption {
+func PromptWithArguments(arguments ...PromptArgument) PromptOption {
 	return func(o *promptOptions) {
 		o.arguments = arguments
 	}
