@@ -22,7 +22,7 @@ https://github.com/uber-go/guide/blob/master/style.md
 ├── .junie/                                 # Junie related files
 │   └── guidelines.md                       # Project guidelines
 ├── examples/                               # Example applications
-│   └── weather/                            # Calculator example
+│   └── weather/                            # Weather example
 │       ├── cmd/                            # Entry points
 │       │   ├── weather-stdio/main.go       # Stdio transport example
 │       │   └── weather-streamable/main.go  # HTTP transport example
