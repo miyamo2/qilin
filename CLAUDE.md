@@ -1,4 +1,4 @@
-# Project Guidelines
+# CLAUDE.md
 
 This project is a framework for building Model Context Protocol (MCP) compliant applications in Go.
 
