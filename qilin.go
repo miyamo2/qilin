@@ -628,11 +628,12 @@ func (q *Qilin) handleResourceListChangeObserver(
 }
 
 type startOptions struct {
-	ctx       context.Context
-	listener  jsonrpc2.Listener
-	framer    jsonrpc2.Framer
-	preempter jsonrpc2.Preempter
-	onWarm    []func()
+	ctx            context.Context
+	listener       jsonrpc2.Listener
+	framer         jsonrpc2.Framer
+	preempter      jsonrpc2.Preempter
+	onWarm         []func()
+	sessionDiscard func(ctx context.Context, sessionID string) error
 }
 
 // StartOption configures the startup settings for the Qilin instance
@@ -655,6 +656,7 @@ func StartWithListener[T *transport.Stdio | *transport.Streamable](listener T) S
 		case *transport.Streamable:
 			o.listener = v
 			o.framer = transport.DefaultStreamableFramer()
+			v.SetSessionDiscard(o.sessionDiscard)
 		}
 	}
 }
@@ -691,8 +693,9 @@ func (q *Qilin) Start(options ...StartOption) error {
 	defer q.startupMutex.Unlock()
 
 	o := &startOptions{
-		ctx:    context.Background(),
-		framer: transport.DefaultStdioFramer(),
+		ctx:            context.Background(),
+		framer:         transport.DefaultStdioFramer(),
+		sessionDiscard: q.sessionManager.Discard,
 	}
 	for _, opt := range options {
 		opt(o)
@@ -789,11 +792,13 @@ func (b *binder) Bind(
 		h.getSessionID = inner.SessionID
 		h.setSessionID = inner.SetSessionID
 		h.connectionCtx = inner.Context()
+		h.noticeTransportError = inner.NoticeError
 	case *transport.StreamableReadWriteCloser:
 		h.getSessionID = inner.SessionID
 		h.setSessionID = inner.SetSessionID
 		h.switchToStreamConnection = inner.SwitchStreamConnection
 		h.connectionCtx = inner.Context()
+		h.noticeTransportError = inner.NoticeError
 	}
 
 	return jsonrpc2.ConnectionOptions{
@@ -855,6 +860,9 @@ type handler struct {
 
 	// wg wait for all subscriptions to finish
 	wg sync.WaitGroup
+
+	// noticeTransportError is a function to notify error to the transport layer
+	noticeTransportError func(error)
 }
 
 // Handle See: jsonrpc2.Handler.Handle
@@ -874,6 +882,7 @@ func (h *handler) Handle(ctx context.Context, req *jsonrpc2.Request) (interface{
 
 	sessionID = h.getSessionID()
 	if sessionID == "" {
+		h.noticeTransportError(transport.ErrMissingSessionID)
 		return nil, jsonrpc2.ErrUnknown
 	}
 	return h.invokeMethod(ctx, req, sessionID)
@@ -915,7 +924,8 @@ func (h *handler) invokeMethod(
 ) (interface{}, error) {
 	sessionCtx, err := h.qilin.sessionManager.Context(ctx, sessionID)
 	if err != nil {
-		return nil, err
+		h.noticeTransportError(transport.ErrSessionNotFound)
+		return nil, jsonrpc2.ErrUnknown
 	}
 	select {
 	case <-sessionCtx.Done():
@@ -1267,9 +1277,9 @@ func (h *handler) handleResourceUnsubscribe(
 }
 
 func (h *handler) reset() {
-	defer h.runningMu.Unlock()
 	if h.runningMu.TryLock() {
 		// if the handler is already reset, avoid double reset
+		h.runningMu.Unlock()
 		return
 	}
 	h.wg.Wait()
@@ -1278,6 +1288,7 @@ func (h *handler) reset() {
 	h.setSessionID = nil
 	h.switchToStreamConnection = noopFuncWithDuration
 	h.connectionCtx = nil
+	h.noticeTransportError = nil
 	h.qilin.handlerPool.Put(h)
 }
 

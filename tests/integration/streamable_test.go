@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -179,4 +180,89 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_Initialize_ProtocolVersion
 	version, ok := serverInfo["version"].(string)
 	s.Require().True(ok)
 	s.Require().Equal("1.0.0", version)
+}
+
+// TestStreamableTestSuite_Ping_Success tests successful ping request after session establishment
+func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_Success() {
+	params := map[string]any{
+		"protocolVersion": qilin.LatestProtocolVersion,
+		"capabilities": map[string]any{
+			"experimental": map[string]any{},
+		},
+		"clientInfo": map[string]any{
+			"name":    "test-client",
+			"version": "1.0.0",
+		},
+	}
+	initReq := NewJSONRPCRequest(s.T(), qilin.MethodInitialize, params)
+	initReqBytes, err := json.Marshal(initReq)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	initResp, err := http.Post(url, "application/json", bytes.NewReader(initReqBytes))
+	s.Require().NoError(err)
+	defer initResp.Body.Close()
+
+	sessionID := SessionIDFromResponse(s.T(), initResp)
+	s.Require().NotEmpty(sessionID)
+
+	pingReq := NewJSONRPCRequest(s.T(), qilin.MethodPing, nil)
+	pingReqBytes, err := json.Marshal(pingReq)
+	s.Require().NoError(err)
+
+	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(pingReqBytes))
+	s.Require().NoError(err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(transport.MCPSessionID, sessionID)
+
+	client := &http.Client{}
+	pingResp, err := client.Do(httpReq)
+	s.Require().NoError(err)
+	defer pingResp.Body.Close()
+
+	s.Require().Equal(http.StatusOK, pingResp.StatusCode)
+
+	responseData, err := io.ReadAll(pingResp.Body)
+	s.Require().NoError(err)
+
+	pingResponse := JSONRPCResponseFromBytes(s.T(), responseData)
+
+	s.Require().Equal(pingReq.ID, pingResponse.ID)
+	s.Require().Nil(pingResponse.Error)
+	s.Require().NotNil(pingResponse.Result)
+	s.Require().Equal("{}", string(pingResponse.Result))
+}
+
+// TestStreamableTestSuite_Ping_InvalidSession tests ping request with invalid session ID
+func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_InvalidSession() {
+	pingReq := NewJSONRPCRequest(s.T(), qilin.MethodPing, nil)
+	pingReqBytes, err := json.Marshal(pingReq)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(pingReqBytes))
+	s.Require().NoError(err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(transport.MCPSessionID, "invalid-session-id")
+
+	client := &http.Client{}
+	pingResp, err := client.Do(httpReq)
+	s.Require().NoError(err)
+	defer pingResp.Body.Close()
+
+	s.Require().Equal(http.StatusNotFound, pingResp.StatusCode)
+}
+
+// TestStreamableTestSuite_Ping_MissingSessionHeader tests ping request without session ID header
+func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_MissingSessionHeader() {
+	pingReq := NewJSONRPCRequest(s.T(), qilin.MethodPing, nil)
+	pingReqBytes, err := json.Marshal(pingReq)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	pingResp, err := http.Post(url, "application/json", bytes.NewReader(pingReqBytes))
+	s.Require().NoError(err)
+	defer pingResp.Body.Close()
+
+	s.Require().Equal(http.StatusBadRequest, pingResp.StatusCode)
 }

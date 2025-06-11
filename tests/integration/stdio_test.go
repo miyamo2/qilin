@@ -72,7 +72,6 @@ func TestStdioTestSuite(t *testing.T) {
 
 // TestStdioTestSuite_Initialize_Success tests successful initialization process
 func (s *StdioTestSuite) TestStdioTestSuite_Initialize_Success() {
-	// Create valid initialization request
 	params := map[string]any{
 		"protocolVersion": qilin.LatestProtocolVersion,
 		"capabilities": map[string]any{
@@ -97,12 +96,10 @@ func (s *StdioTestSuite) TestStdioTestSuite_Initialize_Success() {
 
 	response := JSONRPCResponseFromBytes(s.T(), buf[:n])
 
-	// Verify response
 	s.Require().Equal(req.ID, response.ID)
 	s.Require().Nil(response.Error)
 	s.Require().NotNil(response.Result)
 
-	// Parse initialize result
 	var result map[string]any
 	err = json.Unmarshal(response.Result, &result)
 	s.Require().NoError(err)
@@ -173,4 +170,73 @@ func (s *StdioTestSuite) TestStdioTestSuite_Initialize_ProtocolVersionFallback()
 	serverInfo, ok := result["serverInfo"].(map[string]any)
 	s.Require().True(ok)
 	s.Require().NotNil(serverInfo)
+}
+
+// TestStdioTestSuite_Ping_Success tests successful ping request after initialization
+func (s *StdioTestSuite) TestStdioTestSuite_Ping_Success() {
+	params := map[string]any{
+		"protocolVersion": qilin.LatestProtocolVersion,
+		"capabilities": map[string]any{
+			"experimental": map[string]any{},
+		},
+		"clientInfo": map[string]any{
+			"name":    "test-client",
+			"version": "1.0.0",
+		},
+	}
+
+	initReq := NewJSONRPCRequest(s.T(), qilin.MethodInitialize, params)
+	initReqBytes, err := json.Marshal(initReq)
+	s.Require().NoError(err)
+
+	_, err = s.clientWritePipe.Write(append(initReqBytes, '\n'))
+	s.Require().NoError(err)
+
+	buf := make([]byte, 4096)
+	n, err := s.clientReadPipe.Read(buf)
+	s.Require().NoError(err)
+
+	initResponse := JSONRPCResponseFromBytes(s.T(), buf[:n])
+	s.Require().Equal(initReq.ID, initResponse.ID)
+	s.Require().Nil(initResponse.Error)
+	s.Require().NotNil(initResponse.Result)
+
+	pingReq := NewJSONRPCRequest(s.T(), qilin.MethodPing, nil)
+	pingReqBytes, err := json.Marshal(pingReq)
+	s.Require().NoError(err)
+
+	_, err = s.clientWritePipe.Write(append(pingReqBytes, '\n'))
+	s.Require().NoError(err)
+
+	buf = make([]byte, 4096)
+	n, err = s.clientReadPipe.Read(buf)
+	s.Require().NoError(err)
+
+	pingResponse := JSONRPCResponseFromBytes(s.T(), buf[:n])
+
+	s.Require().Equal(pingReq.ID, pingResponse.ID)
+	s.Require().Nil(pingResponse.Error)
+	s.Require().NotNil(pingResponse.Result)
+	s.Require().Equal("{}", string(pingResponse.Result))
+}
+
+// TestStdioTestSuite_Ping_WithoutSession tests ping request without prior initialization
+func (s *StdioTestSuite) TestStdioTestSuite_Ping_WithoutSession() {
+	pingReq := NewJSONRPCRequest(s.T(), qilin.MethodPing, nil)
+	pingReqBytes, err := json.Marshal(pingReq)
+	s.Require().NoError(err)
+
+	_, err = s.clientWritePipe.Write(append(pingReqBytes, '\n'))
+	s.Require().NoError(err)
+
+	buf := make([]byte, 4096)
+	n, err := s.clientReadPipe.Read(buf)
+	s.Require().NoError(err)
+
+	pingResponse := JSONRPCResponseFromBytes(s.T(), buf[:n])
+
+	s.Require().Equal(pingReq.ID, pingResponse.ID)
+	s.Require().NotNil(pingResponse.Error)
+	s.Require().Nil(pingResponse.Result)
+	s.Require().Equal(-32001, pingResponse.Error.Code)
 }
