@@ -50,3 +50,7 @@ func (n noopAuthorizer) Authorize(_ string) error {
 func DefaultAuthorizer() Authorizer {
 	return &noopAuthorizer{}
 }
+
+type ErrorNotifier interface {
+	NoticeError(err error)
+}

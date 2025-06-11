@@ -18,12 +18,8 @@ github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKs
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/wk8/go-ordered-map/v2 v2.1.8 h1:5h/BUHu93oj4gIdvHHHGsScSTMijfx5PeYkE/fJgbpc=
 github.com/wk8/go-ordered-map/v2 v2.1.8/go.mod h1:5nJHM5DyteebpVlHnWMV0rPz6Zp7+xBAnxjb1X5vnTw=
-golang.org/x/exp/event v0.0.0-20250531010427-b6e5de432a8b h1:+x3HmG49QkiS9chDNayqjUPqujOyUbYMh5x8bDXjyNs=
-golang.org/x/exp/event v0.0.0-20250531010427-b6e5de432a8b/go.mod h1:udw/aN1bTuThf1ISB3S96VHoY1PwY5hrk/e7w5O5DRs=
 golang.org/x/exp/event v0.0.0-20250606033433-dcc06ee1d476 h1:cm1r0UOtqjoQNs5wOcTknX6JFbpbMNtOhlmTDdCDt9o=
 golang.org/x/exp/event v0.0.0-20250606033433-dcc06ee1d476/go.mod h1:udw/aN1bTuThf1ISB3S96VHoY1PwY5hrk/e7w5O5DRs=
-golang.org/x/exp/jsonrpc2 v0.0.0-20250531010427-b6e5de432a8b h1:fykv2LQFPSXU3HdV+evEn4IOntG4oaqVi5T4nXCiv2Q=
-golang.org/x/exp/jsonrpc2 v0.0.0-20250531010427-b6e5de432a8b/go.mod h1:nPUl66QnKRf99UZqZolP9+aV0hDQ39vdswdEZj6OKZA=
 golang.org/x/exp/jsonrpc2 v0.0.0-20250606033433-dcc06ee1d476 h1:yPPyCx5ZIq0FtoWYV2KjHhVEL5I22IqgM8Ttb6f3UFs=
 golang.org/x/exp/jsonrpc2 v0.0.0-20250606033433-dcc06ee1d476/go.mod h1:nPUl66QnKRf99UZqZolP9+aV0hDQ39vdswdEZj6OKZA=
 golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da h1:noIWHXmPHxILtqtCOPIhSt0ABwskkZKjD3bXGnZGpNY=

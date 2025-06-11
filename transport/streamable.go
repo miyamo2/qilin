@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -25,16 +26,18 @@ var (
 
 // Streamable implements jsonrpc2.Listener, jsonrpc2.Framer, and jsonrpc2.Dialer
 type Streamable struct {
-	framer           jsonrpc2.Framer
-	authorizer       Authorizer
-	netListener      net.Listener
-	rwc              chan *StreamableReadWriteCloser
-	allowCORSOrigin  string
-	allowCORSMethods string
-	allowCORSHeaders string
-	errCh            chan error
-	startOnce        sync.Once
-	mux              *http.ServeMux
+	framer                jsonrpc2.Framer
+	authorizer            Authorizer
+	netListener           net.Listener
+	rwc                   chan *StreamableReadWriteCloser
+	allowCORSOrigin       string
+	allowCORSMethods      string
+	allowCORSHeaders      string
+	errCh                 chan error
+	startOnce             sync.Once
+	mux                   *http.ServeMux
+	sessionDiscard        func(ctx context.Context, sessionID string) error
+	setSessionDiscardOnce sync.Once
 }
 
 var (
@@ -103,6 +106,15 @@ func (s *Streamable) Dial(ctx context.Context) (io.ReadWriteCloser, error) {
 	}
 }
 
+// SetSessionDiscard sets the session discard function.
+func (s *Streamable) SetSessionDiscard(
+	sessionDiscard func(ctx context.Context, sessionID string) error,
+) {
+	s.setSessionDiscardOnce.Do(func() {
+		s.sessionDiscard = sessionDiscard
+	})
+}
+
 // Dialer See: jsonrpc2.Listener#Dialer
 func (s *Streamable) Dialer() jsonrpc2.Dialer {
 	return s
@@ -135,6 +147,22 @@ func (s *Streamable) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	s.rwc <- rwc
 	<-ctx.Done()
+}
+
+func (s *Streamable) deleteSession(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.Header.Get(MCPSessionID)
+	if sessionID == "" {
+		http.Error(w, "missing session id", http.StatusBadRequest)
+		return
+	}
+	if s.sessionDiscard != nil {
+		if err := s.sessionDiscard(r.Context(), sessionID); err != nil {
+			slog.ErrorContext(r.Context(), "[qilin] delete session failed", "error", err)
+			http.Error(w, "failed to delete session", http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Streamable) preflight(w http.ResponseWriter, r *http.Request) {
@@ -241,6 +269,7 @@ func NewStreamable(options ...StreamableOption) *Streamable {
 	s.mux.HandleFunc("OPTIONS /mcp", s.preflight)
 	s.mux.HandleFunc("GET /mcp", s.serveHTTP)
 	s.mux.HandleFunc("POST /mcp", s.serveHTTP)
+	s.mux.HandleFunc("DELETE /mcp", s.deleteSession)
 
 	return s
 }
@@ -253,6 +282,7 @@ type HttpIO interface {
 	Probe() error
 	io.ReadWriteCloser
 	SessionIDHolder
+	ErrorNotifier
 }
 
 // compatibility check
@@ -377,6 +407,19 @@ func (s *StreamableReadWriteCloser) Context() context.Context {
 	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	ctx := context.WithValue(s.ctx, struct{}{}, struct{}{})
 	return ctx
+}
+
+func (s *StreamableReadWriteCloser) NoticeError(err error) {
+	switch {
+	case errors.Is(err, ErrMissingSessionID):
+		s.w.WriteHeader(http.StatusBadRequest)
+		_, _ = s.w.Write([]byte("missing session id"))
+		s.flusher.Flush()
+	case errors.Is(err, ErrSessionNotFound):
+		s.w.WriteHeader(http.StatusNotFound)
+		_, _ = s.w.Write([]byte("session not found"))
+		s.flusher.Flush()
+	}
 }
 
 // compatibility check

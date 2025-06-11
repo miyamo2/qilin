@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -17,6 +18,7 @@ var (
 	_ jsonrpc2.Dialer    = (*Stdio)(nil)
 	_ io.ReadWriteCloser = (*Stdio)(nil)
 	_ SessionIDHolder    = (*Stdio)(nil)
+	_ ErrorNotifier      = (*Stdio)(nil)
 )
 
 // Stdio implements the jsonrpc2.Listener, jsonrpc2.Dialer and io.ReadWriteCloser
@@ -109,6 +111,10 @@ func (s *Stdio) Context() context.Context {
 	//lint:ignore SA1029 Tentative hack to create a simple child context.
 	ctx := context.WithValue(s.ctx, struct{}{}, struct{}{})
 	return ctx
+}
+
+func (s *Stdio) NoticeError(err error) {
+	slog.Error("[qilin] occurred an error in stdio transport", slog.String("error", err.Error()))
 }
 
 type stdioOptions struct {
