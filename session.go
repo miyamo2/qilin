@@ -80,7 +80,7 @@ func (s *InMemorySessionStore) Delete(_ context.Context, sessionID string) (err 
 	}
 	session := v.(*stateFullSession)
 	session.cancel()
-	return session.ctx.Err()
+	return nil
 }
 
 func (s *InMemorySessionStore) Context(
