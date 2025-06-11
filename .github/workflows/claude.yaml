@@ -33,7 +33,7 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: miyamo2/claude-code-action@main
+        uses: miyamo2/claude-code-action@232f9f243e0e4b2a02cddac0ef8620d492bbab26
         with:
           use_oauth: 'true'
           claude_access_token: ${{ secrets.CLAUDE_ACCESS_TOKEN }}
