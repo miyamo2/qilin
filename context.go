@@ -444,10 +444,10 @@ var _ PromptContext = (*promptContext)(nil)
 
 type promptContext struct {
 	_context
-	promptName         string
-	args               map[string]any
-	dest               *getPromptResult
-	base64StringFunc   Base64StringFunc
+	promptName       string
+	args             map[string]any
+	dest             *getPromptResult
+	base64StringFunc Base64StringFunc
 }
 
 func (c *promptContext) PromptName() string {

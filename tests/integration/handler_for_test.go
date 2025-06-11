@@ -135,7 +135,7 @@ func NewQilin(t *testing.T) *qilin.Qilin {
 
 	q := qilin.New("beer_hall", qilin.WithVersion("1.0.0"))
 	q.Tool("order", (*OrderRequest)(nil), OrderHandler)
-	q.Prompt("greeting", GreetingPromptHandler, 
+	q.Prompt("greeting", GreetingPromptHandler,
 		qilin.PromptWithDescription("A greeting prompt that welcomes users"),
 		qilin.PromptWithArguments([]qilin.PromptArgument{
 			{Name: "name", Description: "The name of the person to greet", Required: false},

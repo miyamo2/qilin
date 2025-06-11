@@ -1272,7 +1272,10 @@ func (h *handler) handlePromptsList() (interface{}, error) {
 }
 
 // handlePromptsGet handles the request to get a specific prompt.
-func (h *handler) handlePromptsGet(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
+func (h *handler) handlePromptsGet(
+	ctx context.Context,
+	req *jsonrpc2.Request,
+) (interface{}, error) {
 	var params getPromptRequestParams
 	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
 		return nil, jsonrpc2.ErrInvalidParams
