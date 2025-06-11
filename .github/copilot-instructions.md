@@ -1,11 +1,11 @@
 # Qilin Copilot Instructions
 
+This project is a framework for building Model Context Protocol (MCP) compliant applications in Go.
+
 ## Coding Style
 
 Must comply with the Uber Go Style Guide.  
 https://github.com/uber-go/guide/blob/master/style.md
-
-## Project Structure
 
 ## Project Structure
 
