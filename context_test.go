@@ -1421,3 +1421,219 @@ func TestResourceListChangeContext_unsubscribe(t *testing.T) {
 		}
 	})
 }
+
+func TestPromptContext_PromptName(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		c := newPromptContext(nil, nil, nil)
+		c.promptName = "test-prompt"
+		if got := c.PromptName(); got != "test-prompt" {
+			t.Fatalf("expected 'test-prompt', got %v", got)
+		}
+	})
+	t.Run("unset", func(t *testing.T) {
+		c := newPromptContext(nil, nil, nil)
+		if got := c.PromptName(); got != "" {
+			t.Fatalf("expected empty string, got %v", got)
+		}
+	})
+}
+
+func TestPromptContext_Arguments(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		args := map[string]string{"name": "John", "age": "30"}
+		c := newPromptContext(nil, nil, nil)
+		c.args = args
+		if got := c.Arguments(); !reflect.DeepEqual(got, args) {
+			t.Fatalf("expected %v, got %v", args, got)
+		}
+	})
+	t.Run("unset", func(t *testing.T) {
+		c := newPromptContext(nil, nil, nil)
+		if got := c.Arguments(); got != nil {
+			t.Fatalf("expected nil, got %v", got)
+		}
+	})
+}
+
+func TestPromptContext_Bind(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		type Args struct {
+			Name string `json:"name"`
+			Age  string `json:"age"`
+		}
+		c := newPromptContext(json.Unmarshal, json.Marshal, nil)
+		c.args = map[string]string{"name": "John", "age": "30"}
+		var args Args
+		err := c.Bind(&args)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if args.Name != "John" || args.Age != "30" {
+			t.Fatalf("expected name=John, age=30, got name=%v, age=%v", args.Name, args.Age)
+		}
+	})
+	t.Run("empty args", func(t *testing.T) {
+		type Args struct {
+			Name string `json:"name"`
+			Age  string `json:"age"`
+		}
+		c := newPromptContext(json.Unmarshal, json.Marshal, nil)
+		var args Args
+		err := c.Bind(&args)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if args.Name != "" || args.Age != "" {
+			t.Fatalf("expected name='', age='', got name=%v, age=%v", args.Name, args.Age)
+		}
+	})
+}
+
+func TestPromptContext_String(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, nil)
+		c.dest = &dest
+		if err := c.String("user", "Hello world"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(c.dest.Messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
+		}
+		msg := c.dest.Messages[0]
+		if msg.Role != "user" {
+			t.Fatalf("expected role 'user', got %v", msg.Role)
+		}
+		textContent, ok := msg.Content.(*textPromptContent)
+		if !ok {
+			t.Fatalf("expected *textPromptContent, got %T", msg.Content)
+		}
+		if textContent.Text != "Hello world" {
+			t.Fatalf("expected 'Hello world', got %v", textContent.Text)
+		}
+	})
+}
+
+func TestPromptContext_JSON(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		type Data struct {
+			Message string `json:"message"`
+		}
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, nil)
+		c.dest = &dest
+		data := Data{Message: "hello"}
+		if err := c.JSON("assistant", data); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(c.dest.Messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
+		}
+		msg := c.dest.Messages[0]
+		if msg.Role != "assistant" {
+			t.Fatalf("expected role 'assistant', got %v", msg.Role)
+		}
+		textContent, ok := msg.Content.(*textPromptContent)
+		if !ok {
+			t.Fatalf("expected *textPromptContent, got %T", msg.Content)
+		}
+		expected := `{"message":"hello"}`
+		if textContent.Text != expected {
+			t.Fatalf("expected %s, got %v", expected, textContent.Text)
+		}
+	})
+}
+
+func TestPromptContext_Image(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, func(data []byte) string {
+			return "encoded-image-data"
+		})
+		c.dest = &dest
+		imageData := []byte("image-data")
+		if err := c.Image("user", imageData, "image/png"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(c.dest.Messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
+		}
+		msg := c.dest.Messages[0]
+		if msg.Role != "user" {
+			t.Fatalf("expected role 'user', got %v", msg.Role)
+		}
+		imageContent, ok := msg.Content.(*imagePromptContent)
+		if !ok {
+			t.Fatalf("expected *imagePromptContent, got %T", msg.Content)
+		}
+		if imageContent.Data != "encoded-image-data" {
+			t.Fatalf("expected 'encoded-image-data', got %v", imageContent.Data)
+		}
+		if imageContent.MimeType != "image/png" {
+			t.Fatalf("expected 'image/png', got %v", imageContent.MimeType)
+		}
+	})
+}
+
+func TestPromptContext_Resource(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, nil)
+		c.dest = &dest
+		uri := MustURL(t, "example://example.com")
+		resource := &textResourceContent{
+			resourceContentBase: resourceContentBase{
+				uri:      weak.Make(uri),
+				mimeType: "text/plain",
+			},
+			text:    "resource content",
+			marshal: json.Marshal,
+		}
+		if err := c.Resource("system", resource); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(c.dest.Messages) != 1 {
+			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
+		}
+		msg := c.dest.Messages[0]
+		if msg.Role != "system" {
+			t.Fatalf("expected role 'system', got %v", msg.Role)
+		}
+		resourceContent, ok := msg.Content.(*embedResourcePromptContent)
+		if !ok {
+			t.Fatalf("expected *embedResourcePromptContent, got %T", msg.Content)
+		}
+		if !reflect.DeepEqual(resourceContent.Resource, resource) {
+			t.Fatalf("expected %v, got %v", resource, resourceContent.Resource)
+		}
+	})
+}
+
+func TestPromptContext_reset(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(json.Unmarshal, json.Marshal, base64.StdEncoding.EncodeToString)
+		c.promptName = "test-prompt"
+		c.args = map[string]string{"name": "John"}
+		c.dest = &dest
+		c.jsonrpcRequest = &jsonrpc2.Request{}
+		c.store.Store("key", "value")
+		c.reset()
+		if c.promptName != "" {
+			t.Fatalf("expected empty string, got %v", c.promptName)
+		}
+		if c.args != nil {
+			t.Fatalf("expected nil, got %v", c.args)
+		}
+		if c.dest != nil {
+			t.Fatalf("expected nil, got %v", c.dest)
+		}
+		if c.jsonrpcRequest != nil {
+			t.Fatalf("expected nil, got %v", c.jsonrpcRequest)
+		}
+		c.store.Range(func(k, v interface{}) bool {
+			t.Fatalf("unexpected key=%v value=%v", k, v)
+			return true
+		})
+	})
+}

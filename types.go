@@ -543,6 +543,144 @@ func (e *embedResourceCallToolContent) GetType() string {
 	return "resource"
 }
 
+// prompt defines a prompt template that the client can request.
+type prompt struct {
+	// Name is the unique identifier for the prompt.
+	Name string `json:"name"`
+
+	// Description of the prompt that is human-readable.
+	Description string `json:"description,omitzero"`
+
+	// Arguments contains the JSON Schema that defines the expected parameters for the prompt.
+	Arguments []PromptArgument `json:"arguments,omitzero"`
+
+	// handler handles invocation of the prompt with the provided arguments.
+	handler PromptHandlerFunc
+}
+
+// PromptArgument represents an argument that a prompt accepts.
+type PromptArgument struct {
+	// Name is the name of the argument.
+	Name string `json:"name"`
+
+	// Description of the argument.
+	Description string `json:"description,omitzero"`
+
+	// Required indicates whether the argument is required.
+	Required bool `json:"required,omitzero"`
+}
+
+// promptMessage represents content that is part of a prompt.
+type promptMessage struct {
+	// Role of this message (e.g., "user", "assistant").
+	Role string `json:"role"`
+
+	// Content is the content of the message.
+	Content PromptContent `json:"content"`
+}
+
+// PromptContent represents the actual content within a prompt message.
+type PromptContent interface {
+	GetType() string
+	json.Marshaler
+}
+
+// compatibility check
+var _ PromptContent = (*textPromptContent)(nil)
+
+// textPromptContent represents text content in a prompt.
+type textPromptContent struct {
+	Text    string
+	marshal JSONMarshalFunc
+}
+
+func (t *textPromptContent) MarshalJSON() ([]byte, error) {
+	return t.marshal(struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}{
+		Type: t.GetType(),
+		Text: t.Text,
+	})
+}
+
+func (t *textPromptContent) GetType() string {
+	return "text"
+}
+
+// compatibility check
+var _ PromptContent = (*imagePromptContent)(nil)
+
+// imagePromptContent represents image content in a prompt.
+type imagePromptContent struct {
+	Data     string
+	MimeType string
+	marshal  JSONMarshalFunc
+}
+
+func (i *imagePromptContent) MarshalJSON() ([]byte, error) {
+	return i.marshal(struct {
+		Type     string `json:"type"`
+		Data     string `json:"data"`
+		MimeType string `json:"mimeType,omitzero"`
+	}{
+		Type:     i.GetType(),
+		Data:     i.Data,
+		MimeType: i.MimeType,
+	})
+}
+
+func (i *imagePromptContent) GetType() string {
+	return "image"
+}
+
+// compatibility check
+var _ PromptContent = (*embedResourcePromptContent)(nil)
+
+// embedResourcePromptContent represents embedded resource content in a prompt.
+type embedResourcePromptContent struct {
+	Resource ResourceContent
+	marshal  JSONMarshalFunc
+}
+
+func (e *embedResourcePromptContent) MarshalJSON() ([]byte, error) {
+	return e.marshal(struct {
+		Type     string          `json:"type"`
+		Resource ResourceContent `json:"resource"`
+	}{
+		Type:     e.GetType(),
+		Resource: e.Resource,
+	})
+}
+
+func (e *embedResourcePromptContent) GetType() string {
+	return "resource"
+}
+
+// listPromptsResult is the server's response to a prompts/list request.
+type listPromptsResult struct {
+	// Prompts is a list of prompt templates available on the server.
+	Prompts []prompt `json:"prompts"`
+}
+
+// getPromptRequestParams sent from the client to the server to get a specific prompt.
+type getPromptRequestParams struct {
+	// Name is the name of the prompt to retrieve.
+	Name string `json:"name"`
+
+	// Arguments contains the arguments to use when rendering the prompt template.
+	Arguments map[string]string `json:"arguments,omitzero"`
+}
+
+// getPromptResult is the server's response to a prompts/get request.
+type getPromptResult struct {
+	// Description of the prompt.
+	Description string `json:"description,omitzero"`
+
+	// Messages contains the rendered prompt messages.
+	Messages []promptMessage `json:"messages"`
+}
+
 // subscribeResourcesRequestParams sent from the client to request resources/updated notifications from the server whenever a particular resource changes.
 type subscribeResourcesRequestParams struct {
 	URI *ResourceURI `json:"uri"`
