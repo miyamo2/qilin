@@ -267,6 +267,171 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_MissingSessionHeader(
 	s.Require().Equal(http.StatusBadRequest, pingResp.StatusCode)
 }
 
+// TestStreamableTestSuite_PromptsList tests successful prompts/list request via HTTP
+func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsList() {
+	// Initialize and get session ID
+	sessionID := s.initializeSessionAndGetID()
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodPromptsList, nil)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(reqBytes))
+	s.Require().NoError(err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(transport.MCPSessionID, sessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	s.Require().NoError(err)
+	defer resp.Body.Close()
+
+	s.Require().Equal(http.StatusOK, resp.StatusCode)
+
+	responseData, err := io.ReadAll(resp.Body)
+	s.Require().NoError(err)
+
+	response := JSONRPCResponseFromBytes(s.T(), responseData)
+
+	s.Require().Equal(req.ID, response.ID)
+	s.Require().Nil(response.Error)
+	s.Require().NotNil(response.Result)
+
+	var result map[string]any
+	err = json.Unmarshal(response.Result, &result)
+	s.Require().NoError(err)
+
+	prompts, ok := result["prompts"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(prompts, 1)
+
+	prompt := prompts[0].(map[string]any)
+	s.Require().Equal("greeting", prompt["name"])
+	s.Require().Equal("A greeting prompt that welcomes users", prompt["description"])
+
+	arguments, ok := prompt["arguments"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(arguments, 1)
+
+	arg := arguments[0].(map[string]any)
+	s.Require().Equal("name", arg["name"])
+	s.Require().Equal("The name of the person to greet", arg["description"])
+	s.Require().Nil(arg["required"]) // Field is omitted when Required is false due to omitzero
+}
+
+// TestStreamableTestSuite_PromptsGet tests successful prompts/get request via HTTP
+func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsGet() {
+	// Initialize and get session ID
+	sessionID := s.initializeSessionAndGetID()
+
+	params := map[string]any{
+		"name": "greeting",
+		"arguments": map[string]any{
+			"name": "Alice",
+		},
+	}
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodPromptsGet, params)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(reqBytes))
+	s.Require().NoError(err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(transport.MCPSessionID, sessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	s.Require().NoError(err)
+	defer resp.Body.Close()
+
+	s.Require().Equal(http.StatusOK, resp.StatusCode)
+
+	responseData, err := io.ReadAll(resp.Body)
+	s.Require().NoError(err)
+
+	response := JSONRPCResponseFromBytes(s.T(), responseData)
+
+	s.Require().Equal(req.ID, response.ID)
+	s.Require().Nil(response.Error)
+	s.Require().NotNil(response.Result)
+
+	var result map[string]any
+	err = json.Unmarshal(response.Result, &result)
+	s.Require().NoError(err)
+
+	s.Require().Equal("A greeting prompt that welcomes users", result["description"])
+
+	messages, ok := result["messages"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(messages, 2)
+
+	// Check system message
+	systemMsg := messages[0].(map[string]any)
+	s.Require().Equal("system", systemMsg["role"])
+	systemContent := systemMsg["content"].(map[string]any)
+	s.Require().Equal("text", systemContent["type"])
+	s.Require().Equal("You are a helpful assistant.", systemContent["text"])
+
+	// Check user message
+	userMsg := messages[1].(map[string]any)
+	s.Require().Equal("user", userMsg["role"])
+	userContent := userMsg["content"].(map[string]any)
+	s.Require().Equal("text", userContent["type"])
+	s.Require().Equal("Hello, Alice! How can I help you today?", userContent["text"])
+}
+
+// TestStreamableTestSuite_PromptsGet_WithoutArguments tests prompts/get request without arguments via HTTP
+func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsGet_WithoutArguments() {
+	// Initialize and get session ID
+	sessionID := s.initializeSessionAndGetID()
+
+	params := map[string]any{
+		"name": "greeting",
+	}
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodPromptsGet, params)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(reqBytes))
+	s.Require().NoError(err)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(transport.MCPSessionID, sessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	s.Require().NoError(err)
+	defer resp.Body.Close()
+
+	s.Require().Equal(http.StatusOK, resp.StatusCode)
+
+	responseData, err := io.ReadAll(resp.Body)
+	s.Require().NoError(err)
+
+	response := JSONRPCResponseFromBytes(s.T(), responseData)
+
+	s.Require().Equal(req.ID, response.ID)
+	s.Require().Nil(response.Error)
+	s.Require().NotNil(response.Result)
+
+	var result map[string]any
+	err = json.Unmarshal(response.Result, &result)
+	s.Require().NoError(err)
+
+	messages, ok := result["messages"].([]any)
+	s.Require().True(ok)
+	s.Require().Len(messages, 2)
+
+	// Check user message uses default name
+	userMsg := messages[1].(map[string]any)
+	userContent := userMsg["content"].(map[string]any)
+	s.Require().Equal("Hello, World! How can I help you today?", userContent["text"])
+}
+
 // TestStreamableTestSuite_DeleteSession tests successful deletion of a session
 func (s *StreamableTestSuite) TestStreamableTestSuite_DeleteSession() {
 	params := map[string]any{
@@ -318,4 +483,32 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_DeleteSession() {
 	defer pingResp.Body.Close()
 
 	s.Require().Equal(http.StatusNotFound, pingResp.StatusCode)
+}
+
+// initializeSessionAndGetID helper function to initialize session and return session ID
+func (s *StreamableTestSuite) initializeSessionAndGetID() string {
+	params := map[string]any{
+		"protocolVersion": qilin.LatestProtocolVersion,
+		"capabilities": map[string]any{
+			"experimental": map[string]any{},
+		},
+		"clientInfo": map[string]any{
+			"name":    "test-client",
+			"version": "1.0.0",
+		},
+	}
+
+	req := NewJSONRPCRequest(s.T(), qilin.MethodInitialize, params)
+	reqBytes, err := json.Marshal(req)
+	s.Require().NoError(err)
+
+	url := fmt.Sprintf("http://%s/mcp", s.address)
+	resp, err := http.Post(url, "application/json", bytes.NewReader(reqBytes))
+	s.Require().NoError(err)
+	defer resp.Body.Close()
+
+	sessionID := SessionIDFromResponse(s.T(), resp)
+	s.Require().NotEmpty(sessionID)
+
+	return sessionID
 }
