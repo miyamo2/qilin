@@ -510,5 +510,10 @@ func (s *StreamableTestSuite) initializeSessionAndGetID() string {
 	sessionID := SessionIDFromResponse(s.T(), resp)
 	s.Require().NotEmpty(sessionID)
 
+	// Consume the response body to prevent connection hang
+	for range StreamIterFromResponse(s.T(), resp) {
+		break // Only need to consume one event for initialization
+	}
+
 	return sessionID
 }
