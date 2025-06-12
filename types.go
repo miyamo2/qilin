@@ -558,8 +558,8 @@ type prompt struct {
 	handler PromptHandlerFunc
 }
 
-// promptArgument represents an argument that a prompt accepts.
-type promptArgument struct {
+// PromptArgument represents an argument that a prompt accepts.
+type PromptArgument struct {
 	// Name is the name of the argument.
 	Name string `json:"name"`
 

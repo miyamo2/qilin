@@ -448,7 +448,7 @@ func (q *Qilin) Tool(name string, req any, handler ToolHandlerFunc, options ...T
 
 type promptOptions struct {
 	description string
-	arguments   []promptArgument
+	arguments   []PromptArgument
 	middlewares []PromptMiddlewareFunc
 }
 
@@ -462,17 +462,8 @@ func PromptWithDescription(description string) PromptOption {
 	}
 }
 
-// NewPromptArgument creates a new prompt argument.
-func NewPromptArgument(name, description string, required bool) promptArgument {
-	return promptArgument{
-		Name:        name,
-		Description: description,
-		Required:    required,
-	}
-}
-
 // PromptWithArguments configures the Prompt arguments.
-func PromptWithArguments(arguments ...promptArgument) PromptOption {
+func PromptWithArguments(arguments ...PromptArgument) PromptOption {
 	return func(o *promptOptions) {
 		o.arguments = arguments
 	}
