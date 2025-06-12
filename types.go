@@ -567,7 +567,7 @@ type PromptArgument struct {
 	Description string `json:"description,omitzero"`
 
 	// Required indicates whether the argument is required.
-	Required bool `json:"required,omitzero"`
+	Required bool `json:"required"`
 }
 
 // PromptMessage represents content that is part of a prompt.
