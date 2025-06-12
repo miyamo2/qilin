@@ -815,6 +815,7 @@ func (q *Qilin) Start(options ...StartOption) error {
 	defer cancel()
 
 	q.rootCtx = ctx
+	q.resourceListChangeCtx.ctx = q.rootCtx
 
 	if o.listener == nil {
 		o.listener = transport.NewStdio(ctx)
@@ -873,7 +874,6 @@ func (q *Qilin) Start(options ...StartOption) error {
 	if err != nil {
 		return err
 	}
-	q.resourceListChangeCtx.ctx = q.rootCtx
 	q.warming()
 	return srv.Wait()
 }
