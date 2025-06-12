@@ -122,6 +122,9 @@ type Qilin struct {
 
 	// nowFunc is the function to get the current time
 	nowFunc NowFunc
+
+	// rootCtx is the root context of the Qilin instance
+	rootCtx context.Context
 }
 
 // resourcesSubscriptionOptions is the options for resource subscription.
@@ -810,6 +813,10 @@ func (q *Qilin) Start(options ...StartOption) error {
 
 	ctx, cancel := context.WithCancel(o.ctx)
 	defer cancel()
+
+	q.rootCtx = ctx
+	q.resourceListChangeCtx.ctx = q.rootCtx
+
 	if o.listener == nil {
 		o.listener = transport.NewStdio(ctx)
 	}
@@ -832,6 +839,10 @@ func (q *Qilin) Start(options ...StartOption) error {
 	}
 
 	for v := range q.resourceNode.flattenIter() {
+		switch rcCtx := v.resourceChangeCtx.(type) {
+		case *resourceChangeContext:
+			rcCtx.ctx = q.rootCtx
+		}
 		if v.handler != nil {
 			continue
 		}
@@ -859,7 +870,7 @@ func (q *Qilin) Start(options ...StartOption) error {
 		},
 	}
 
-	srv, err := jsonrpc2.Serve(o.ctx, o.listener, newBinder(q, o.preempter, o.framer))
+	srv, err := jsonrpc2.Serve(q.rootCtx, o.listener, newBinder(q, o.preempter, o.framer))
 	if err != nil {
 		return err
 	}
@@ -906,6 +917,10 @@ func (b *binder) Bind(
 		h.connectionCtx = inner.Context()
 		h.noticeTransportError = inner.NoticeError
 	}
+
+	context.AfterFunc(b.qilin.rootCtx, func() {
+		conn.Close()
+	})
 
 	return jsonrpc2.ConnectionOptions{
 		Preempter: b.preempter,
@@ -1035,6 +1050,11 @@ func (h *handler) invokeMethod(
 	}
 	select {
 	case <-sessionCtx.Done():
+		return nil, sessionCtx.Err()
+	case <-h.connectionCtx.Done():
+		return nil, h.connectionCtx.Err()
+	case <-h.qilin.rootCtx.Done():
+		return nil, h.qilin.rootCtx.Err()
 	default:
 		// no-op
 	}
@@ -1146,6 +1166,7 @@ func (h *handler) resourceListChangeSubscription(
 			case <-sessionCtx.Done():
 			case <-subscription.Unsubscribed():
 			case <-h.connectionCtx.Done():
+			case <-h.qilin.rootCtx.Done():
 				return
 			case <-listChangeCh:
 				err = h.notify(h.connectionCtx, MethodNotificationResourcesListChanged, nil)
@@ -1389,6 +1410,7 @@ func (h *handler) resourceSubscription(
 			case <-ctx.Done():
 			case <-subscription.Unsubscribed():
 			case <-h.connectionCtx.Done():
+			case <-h.qilin.rootCtx.Done():
 				h.qilin.resourceChangeSubscriberPool.Put(subscriber)
 				subscriber.reset()
 				n.resourceChangeCtx.unsubscribe(subscriber.id)
