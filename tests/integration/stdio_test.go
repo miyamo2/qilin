@@ -282,7 +282,7 @@ func (s *StdioTestSuite) TestStdioTestSuite_PromptsList() {
 	arg := arguments[0].(map[string]any)
 	s.Require().Equal("name", arg["name"])
 	s.Require().Equal("The name of the person to greet", arg["description"])
-	s.Require().Equal(false, arg["required"])
+	s.Require().Nil(arg["required"]) // Field is omitted when Required is false due to omitzero
 }
 
 // TestStdioTestSuite_PromptsGet tests successful prompts/get request
