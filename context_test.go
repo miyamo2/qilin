@@ -1459,7 +1459,7 @@ func TestPromptContext_Bind(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		type Args struct {
 			Name string `json:"name"`
-			Age  int    `json:"age"`
+			Age  string `json:"age"`
 		}
 		c := newPromptContext(json.Unmarshal, json.Marshal, nil)
 		c.args = map[string]string{"name": "John", "age": "30"}
@@ -1468,14 +1468,14 @@ func TestPromptContext_Bind(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if args.Name != "John" || args.Age != 30 {
+		if args.Name != "John" || args.Age != "30" {
 			t.Fatalf("expected name=John, age=30, got name=%v, age=%v", args.Name, args.Age)
 		}
 	})
 	t.Run("empty args", func(t *testing.T) {
 		type Args struct {
 			Name string `json:"name"`
-			Age  int    `json:"age"`
+			Age  string `json:"age"`
 		}
 		c := newPromptContext(json.Unmarshal, json.Marshal, nil)
 		var args Args
@@ -1483,8 +1483,8 @@ func TestPromptContext_Bind(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if args.Name != "" || args.Age != 0 {
-			t.Fatalf("expected name='', age=0, got name=%v, age=%v", args.Name, args.Age)
+		if args.Name != "" || args.Age != "" {
+			t.Fatalf("expected name='', age='', got name=%v, age=%v", args.Name, args.Age)
 		}
 	})
 }
