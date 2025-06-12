@@ -184,23 +184,7 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_Initialize_ProtocolVersion
 
 // TestStreamableTestSuite_Ping_Success tests successful ping request after session establishment
 func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_Success() {
-	params := map[string]any{
-		"protocolVersion": qilin.LatestProtocolVersion,
-		"capabilities": map[string]any{
-			"experimental": map[string]any{},
-		},
-		"clientInfo": map[string]any{
-			"name":    "test-client",
-			"version": "1.0.0",
-		},
-	}
-	initReq := NewJSONRPCRequest(s.T(), qilin.MethodInitialize, params)
-	initReqBytes, err := json.Marshal(initReq)
-	s.Require().NoError(err)
-
-	url := fmt.Sprintf("http://%s/mcp", s.address)
-	initResp, err := http.Post(url, "application/json", bytes.NewReader(initReqBytes))
-	s.Require().NoError(err)
+	initResp := s.initializeSession()
 	defer initResp.Body.Close()
 
 	sessionID := SessionIDFromResponse(s.T(), initResp)
@@ -210,6 +194,7 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_Success() {
 	pingReqBytes, err := json.Marshal(pingReq)
 	s.Require().NoError(err)
 
+	url := fmt.Sprintf("http://%s/mcp", s.address)
 	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(pingReqBytes))
 	s.Require().NoError(err)
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -270,7 +255,11 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_Ping_MissingSessionHeader(
 // TestStreamableTestSuite_PromptsList tests successful prompts/list request via HTTP
 func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsList() {
 	// Initialize and get session ID
-	sessionID := s.initializeSessionAndGetID()
+	initResp := s.initializeSession()
+	defer initResp.Body.Close()
+
+	sessionID := SessionIDFromResponse(s.T(), initResp)
+	s.Require().NotEmpty(sessionID)
 
 	req := NewJSONRPCRequest(s.T(), qilin.MethodPromptsList, nil)
 	reqBytes, err := json.Marshal(req)
@@ -323,7 +312,11 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsList() {
 // TestStreamableTestSuite_PromptsGet tests successful prompts/get request via HTTP
 func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsGet() {
 	// Initialize and get session ID
-	sessionID := s.initializeSessionAndGetID()
+	initResp := s.initializeSession()
+	defer initResp.Body.Close()
+
+	sessionID := SessionIDFromResponse(s.T(), initResp)
+	s.Require().NotEmpty(sessionID)
 
 	params := map[string]any{
 		"name": "greeting",
@@ -386,7 +379,11 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsGet() {
 // TestStreamableTestSuite_PromptsGet_WithoutArguments tests prompts/get request without arguments via HTTP
 func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsGet_WithoutArguments() {
 	// Initialize and get session ID
-	sessionID := s.initializeSessionAndGetID()
+	initResp := s.initializeSession()
+	defer initResp.Body.Close()
+
+	sessionID := SessionIDFromResponse(s.T(), initResp)
+	s.Require().NotEmpty(sessionID)
 
 	params := map[string]any{
 		"name": "greeting",
@@ -486,7 +483,7 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_DeleteSession() {
 }
 
 // initializeSessionAndGetID helper function to initialize session and return session ID
-func (s *StreamableTestSuite) initializeSessionAndGetID() string {
+func (s *StreamableTestSuite) initializeSession() *http.Response {
 	params := map[string]any{
 		"protocolVersion": qilin.LatestProtocolVersion,
 		"capabilities": map[string]any{
@@ -505,15 +502,6 @@ func (s *StreamableTestSuite) initializeSessionAndGetID() string {
 	url := fmt.Sprintf("http://%s/mcp", s.address)
 	resp, err := http.Post(url, "application/json", bytes.NewReader(reqBytes))
 	s.Require().NoError(err)
-	defer resp.Body.Close()
 
-	sessionID := SessionIDFromResponse(s.T(), resp)
-	s.Require().NotEmpty(sessionID)
-
-	// Consume the response body to prevent connection hang
-	for range StreamIterFromResponse(s.T(), resp) {
-		break // Only need to consume one event for initialization
-	}
-
-	return sessionID
+	return resp
 }
