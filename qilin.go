@@ -64,8 +64,8 @@ type Qilin struct {
 	// promptContextPool pools PromptContext
 	promptContextPool sync.Pool
 
-	// prompts is the map of prompt names to Prompt instances
-	prompts map[string]Prompt
+	// prompts is the map of prompt names to prompt instances
+	prompts map[string]prompt
 
 	// resourceMiddleware is the list of resourceMiddleware functions to be applied to each resource handler
 	resourceMiddleware []ResourceMiddlewareFunc
@@ -273,7 +273,7 @@ func New(name string, options ...Option) *Qilin {
 		name:              name,
 		version:           "1.0.0",
 		tools:             make(map[string]Tool),
-		prompts:           make(map[string]Prompt),
+		prompts:           make(map[string]prompt),
 		jsonMarshalFunc:   json.Marshal,
 		jsonUnmarshalFunc: json.Unmarshal,
 		base64StringFunc:  base64.StdEncoding.EncodeToString,
@@ -448,7 +448,7 @@ func (q *Qilin) Tool(name string, req any, handler ToolHandlerFunc, options ...T
 
 type promptOptions struct {
 	description string
-	arguments   []PromptArgument
+	arguments   []promptArgument
 	middlewares []PromptMiddlewareFunc
 }
 
@@ -462,8 +462,17 @@ func PromptWithDescription(description string) PromptOption {
 	}
 }
 
+// NewPromptArgument creates a new prompt argument.
+func NewPromptArgument(name, description string, required bool) promptArgument {
+	return promptArgument{
+		Name:        name,
+		Description: description,
+		Required:    required,
+	}
+}
+
 // PromptWithArguments configures the Prompt arguments.
-func PromptWithArguments(arguments ...PromptArgument) PromptOption {
+func PromptWithArguments(arguments ...promptArgument) PromptOption {
 	return func(o *promptOptions) {
 		o.arguments = arguments
 	}
@@ -505,7 +514,7 @@ func (q *Qilin) Prompt(name string, handler PromptHandlerFunc, options ...Prompt
 		f = m(f)
 	}
 
-	q.prompts[name] = Prompt{
+	q.prompts[name] = prompt{
 		Name:        name,
 		Description: opts.description,
 		Arguments:   opts.arguments,
@@ -1268,7 +1277,7 @@ func (h *handler) handleToolsCall(ctx context.Context, req *jsonrpc2.Request) (i
 // handlePromptsList handles the request to list prompts.
 func (h *handler) handlePromptsList() (interface{}, error) {
 	prompts := slices.Collect(maps.Values(h.qilin.prompts))
-	slices.SortFunc(prompts, func(a, b Prompt) int {
+	slices.SortFunc(prompts, func(a, b prompt) int {
 		if a.Name < b.Name {
 			return -1
 		}

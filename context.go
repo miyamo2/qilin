@@ -477,7 +477,7 @@ func (c *promptContext) Bind(i any) error {
 }
 
 func (c *promptContext) String(role, text string) error {
-	c.dest.Messages = append(c.dest.Messages, PromptMessage{
+	c.dest.Messages = append(c.dest.Messages, promptMessage{
 		Role: role,
 		Content: &textPromptContent{
 			Text:    text,
@@ -492,7 +492,7 @@ func (c *promptContext) JSON(role string, i any) error {
 	if err != nil {
 		return err
 	}
-	c.dest.Messages = append(c.dest.Messages, PromptMessage{
+	c.dest.Messages = append(c.dest.Messages, promptMessage{
 		Role: role,
 		Content: &textPromptContent{
 			Text:    string(b),
@@ -504,7 +504,7 @@ func (c *promptContext) JSON(role string, i any) error {
 
 func (c *promptContext) Image(role string, data []byte, mimeType string) error {
 	enc := c.base64StringFunc(data)
-	c.dest.Messages = append(c.dest.Messages, PromptMessage{
+	c.dest.Messages = append(c.dest.Messages, promptMessage{
 		Role: role,
 		Content: &imagePromptContent{
 			Data:     enc,
@@ -516,7 +516,7 @@ func (c *promptContext) Image(role string, data []byte, mimeType string) error {
 }
 
 func (c *promptContext) Resource(role string, resource ResourceContent) error {
-	c.dest.Messages = append(c.dest.Messages, PromptMessage{
+	c.dest.Messages = append(c.dest.Messages, promptMessage{
 		Role: role,
 		Content: &embedResourcePromptContent{
 			Resource: resource,

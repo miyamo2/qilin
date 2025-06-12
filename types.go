@@ -543,8 +543,8 @@ func (e *embedResourceCallToolContent) GetType() string {
 	return "resource"
 }
 
-// Prompt defines a prompt template that the client can request.
-type Prompt struct {
+// prompt defines a prompt template that the client can request.
+type prompt struct {
 	// Name is the unique identifier for the prompt.
 	Name string `json:"name"`
 
@@ -552,14 +552,14 @@ type Prompt struct {
 	Description string `json:"description,omitzero"`
 
 	// Arguments contains the JSON Schema that defines the expected parameters for the prompt.
-	Arguments []PromptArgument `json:"arguments,omitzero"`
+	Arguments []promptArgument `json:"arguments,omitzero"`
 
 	// handler handles invocation of the prompt with the provided arguments.
 	handler PromptHandlerFunc
 }
 
-// PromptArgument represents an argument that a prompt accepts.
-type PromptArgument struct {
+// promptArgument represents an argument that a prompt accepts.
+type promptArgument struct {
 	// Name is the name of the argument.
 	Name string `json:"name"`
 
@@ -570,8 +570,8 @@ type PromptArgument struct {
 	Required bool `json:"required,omitzero"`
 }
 
-// PromptMessage represents content that is part of a prompt.
-type PromptMessage struct {
+// promptMessage represents content that is part of a prompt.
+type promptMessage struct {
 	// Role of this message (e.g., "user", "assistant").
 	Role string `json:"role"`
 
@@ -660,7 +660,7 @@ func (e *embedResourcePromptContent) GetType() string {
 // listPromptsResult is the server's response to a prompts/list request.
 type listPromptsResult struct {
 	// Prompts is a list of prompt templates available on the server.
-	Prompts []Prompt `json:"prompts"`
+	Prompts []prompt `json:"prompts"`
 }
 
 // getPromptRequestParams sent from the client to the server to get a specific prompt.
@@ -678,7 +678,7 @@ type getPromptResult struct {
 	Description string `json:"description,omitzero"`
 
 	// Messages contains the rendered prompt messages.
-	Messages []PromptMessage `json:"messages"`
+	Messages []promptMessage `json:"messages"`
 }
 
 // subscribeResourcesRequestParams sent from the client to request resources/updated notifications from the server whenever a particular resource changes.
