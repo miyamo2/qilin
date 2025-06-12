@@ -669,7 +669,7 @@ type getPromptRequestParams struct {
 	Name string `json:"name"`
 
 	// Arguments contains the arguments to use when rendering the prompt template.
-	Arguments map[string]any `json:"arguments,omitzero"`
+	Arguments map[string]string `json:"arguments,omitzero"`
 }
 
 // getPromptResult is the server's response to a prompts/get request.

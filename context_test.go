@@ -1440,7 +1440,7 @@ func TestPromptContext_PromptName(t *testing.T) {
 
 func TestPromptContext_Arguments(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
-		args := map[string]any{"name": "John", "age": 30}
+		args := map[string]string{"name": "John", "age": "30"}
 		c := newPromptContext(nil, nil, nil)
 		c.args = args
 		if got := c.Arguments(); !reflect.DeepEqual(got, args) {
@@ -1462,7 +1462,7 @@ func TestPromptContext_Bind(t *testing.T) {
 			Age  int    `json:"age"`
 		}
 		c := newPromptContext(json.Unmarshal, json.Marshal, nil)
-		c.args = map[string]any{"name": "John", "age": 30}
+		c.args = map[string]string{"name": "John", "age": "30"}
 		var args Args
 		err := c.Bind(&args)
 		if err != nil {
@@ -1614,7 +1614,7 @@ func TestPromptContext_reset(t *testing.T) {
 		var dest getPromptResult
 		c := newPromptContext(json.Unmarshal, json.Marshal, base64.StdEncoding.EncodeToString)
 		c.promptName = "test-prompt"
-		c.args = map[string]any{"name": "John"}
+		c.args = map[string]string{"name": "John"}
 		c.dest = &dest
 		c.jsonrpcRequest = &jsonrpc2.Request{}
 		c.store.Store("key", "value")

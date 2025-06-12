@@ -429,7 +429,7 @@ type PromptContext interface {
 	// PromptName returns the name of the prompt
 	PromptName() string
 	// Arguments returns the arguments passed to the prompt
-	Arguments() map[string]any
+	Arguments() map[string]string
 	// String sends plain text content
 	String(role, text string) error
 	// JSON sends JSON content
@@ -445,7 +445,7 @@ var _ PromptContext = (*promptContext)(nil)
 type promptContext struct {
 	_context
 	promptName       string
-	args             map[string]any
+	args             map[string]string
 	dest             *getPromptResult
 	base64StringFunc Base64StringFunc
 }
@@ -454,11 +454,11 @@ func (c *promptContext) PromptName() string {
 	return c.promptName
 }
 
-func (c *promptContext) Arguments() map[string]any {
+func (c *promptContext) Arguments() map[string]string {
 	if c.args == nil {
 		return nil
 	}
-	copyArgs := make(map[string]any, len(c.args))
+	copyArgs := make(map[string]string, len(c.args))
 	for k, v := range c.args {
 		copyArgs[k] = v
 	}
