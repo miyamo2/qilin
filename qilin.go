@@ -58,15 +58,6 @@ type Qilin struct {
 	// tools is the map of Tool names to Tool instances
 	tools map[string]Tool
 
-	// promptMiddleware is the list of promptMiddleware functions to be applied to each prompt handler
-	promptMiddleware []PromptMiddlewareFunc
-
-	// promptContextPool pools PromptContext
-	promptContextPool sync.Pool
-
-	// prompts is the map of prompt names to prompt instances
-	prompts map[string]prompt
-
 	// resourceMiddleware is the list of resourceMiddleware functions to be applied to each resource handler
 	resourceMiddleware []ResourceMiddlewareFunc
 
@@ -155,12 +146,6 @@ type ResourceMiddlewareFunc func(next ResourceHandlerFunc) ResourceHandlerFunc
 
 // ResourceListHandlerFunc defines a function to serve resource list requests.
 type ResourceListHandlerFunc func(c ResourceListContext) error
-
-// PromptHandlerFunc defines a function to serve prompt requests.
-type PromptHandlerFunc func(c PromptContext) error
-
-// PromptMiddlewareFunc defines a function to process prompt middleware.
-type PromptMiddlewareFunc func(next PromptHandlerFunc) PromptHandlerFunc
 
 // DefaultResourceListHandler is the default resource list handler.
 func DefaultResourceListHandler(c ResourceListContext) error {
@@ -273,7 +258,6 @@ func New(name string, options ...Option) *Qilin {
 		name:              name,
 		version:           "1.0.0",
 		tools:             make(map[string]Tool),
-		prompts:           make(map[string]prompt),
 		jsonMarshalFunc:   json.Marshal,
 		jsonUnmarshalFunc: json.Unmarshal,
 		base64StringFunc:  base64.StdEncoding.EncodeToString,
@@ -313,11 +297,6 @@ func New(name string, options ...Option) *Qilin {
 	q.toolContextPool = sync.Pool{
 		New: func() any {
 			return newToolContext(q.jsonUnmarshalFunc, q.jsonMarshalFunc, q.base64StringFunc)
-		},
-	}
-	q.promptContextPool = sync.Pool{
-		New: func() any {
-			return newPromptContext(q.jsonUnmarshalFunc, q.jsonMarshalFunc, q.base64StringFunc)
 		},
 	}
 	q.resourceContextPool = sync.Pool{
@@ -442,73 +421,6 @@ func (q *Qilin) Tool(name string, req any, handler ToolHandlerFunc, options ...T
 		Name:        name,
 		Description: opts.description,
 		InputSchema: schema,
-		handler:     f,
-	}
-}
-
-type promptOptions struct {
-	description string
-	arguments   []PromptArgument
-	middlewares []PromptMiddlewareFunc
-}
-
-// PromptOption configures the Prompt options.
-type PromptOption func(*promptOptions)
-
-// PromptWithDescription configures the Prompt description.
-func PromptWithDescription(description string) PromptOption {
-	return func(o *promptOptions) {
-		o.description = description
-	}
-}
-
-// PromptWithArguments configures the Prompt arguments.
-func PromptWithArguments(arguments ...PromptArgument) PromptOption {
-	return func(o *promptOptions) {
-		o.arguments = arguments
-	}
-}
-
-// PromptWithMiddleware configures the Prompt middleware.
-func PromptWithMiddleware(middlewares ...PromptMiddlewareFunc) PromptOption {
-	return func(o *promptOptions) {
-		middlewaresCopy := slices.Clone(middlewares)
-		slices.Reverse(middlewaresCopy)
-		o.middlewares = slices.Concat(middlewaresCopy, o.middlewares)
-	}
-}
-
-// Prompt registers a new prompt template with the given name and description.
-//
-//   - name: the name of the prompt
-//   - handler: the handler function for the prompt
-//   - options: (optional) the options for the prompt
-func (q *Qilin) Prompt(name string, handler PromptHandlerFunc, options ...PromptOption) {
-	ok := q.startupMutex.TryLock()
-	if !ok {
-		panic(ErrQilinLockingConflicts)
-	}
-	defer q.startupMutex.Unlock()
-
-	if q.capabilities.Prompts == nil {
-		q.capabilities.Prompts = &PromptCapability{}
-	}
-
-	opts := &promptOptions{}
-	for _, o := range options {
-		o(opts)
-	}
-
-	f := handler
-	slices.Reverse(opts.middlewares)
-	for _, m := range opts.middlewares {
-		f = m(f)
-	}
-
-	q.prompts[name] = prompt{
-		Name:        name,
-		Description: opts.description,
-		Arguments:   opts.arguments,
 		handler:     f,
 	}
 }
@@ -684,17 +596,6 @@ func (q *Qilin) UseInTools(middleware ...ToolMiddlewareFunc) {
 	q.toolMiddleware = slices.Concat(middleware, q.toolMiddleware)
 }
 
-// UseInPrompts adds middleware to the prompt handler chain.
-func (q *Qilin) UseInPrompts(middleware ...PromptMiddlewareFunc) {
-	ok := q.startupMutex.TryLock()
-	if !ok {
-		panic(ErrQilinLockingConflicts)
-	}
-	defer q.startupMutex.Unlock()
-	slices.Reverse(middleware)
-	q.promptMiddleware = slices.Concat(middleware, q.promptMiddleware)
-}
-
 // UseInResources adds middleware to the resource handler chain.
 func (q *Qilin) UseInResources(middleware ...ResourceMiddlewareFunc) {
 	ok := q.startupMutex.TryLock()
@@ -822,13 +723,6 @@ func (q *Qilin) Start(options ...StartOption) error {
 			tool.handler = middleware(tool.handler)
 		}
 		q.tools[name] = tool
-	}
-
-	for name, prompt := range q.prompts {
-		for _, middleware := range q.promptMiddleware {
-			prompt.handler = middleware(prompt.handler)
-		}
-		q.prompts[name] = prompt
 	}
 
 	for v := range q.resourceNode.flattenIter() {
@@ -1047,10 +941,8 @@ func (h *handler) invokeMethod(
 		return h.handleResourcesTemplatesList()
 	case MethodResourcesRead:
 		return h.handleResourcesRead(ctx, req)
-	case MethodPromptsList:
-		return h.handlePromptsList()
-	case MethodPromptsGet:
-		return h.handlePromptsGet(ctx, req)
+	case MethodPromptsList, MethodPromptsGet:
+		return nil, jsonrpc2.ErrNotHandled
 	case MethodToolsList:
 		return h.handleToolsList()
 	case MethodToolsCall:
@@ -1263,58 +1155,6 @@ func (h *handler) handleToolsCall(ctx context.Context, req *jsonrpc2.Request) (i
 		return nil, fmt.Errorf(ErrorMessageFailedToHandleTool, params.Name, err)
 	}
 	return dest, nil
-}
-
-// handlePromptsList handles the request to list prompts.
-func (h *handler) handlePromptsList() (interface{}, error) {
-	prompts := slices.Collect(maps.Values(h.qilin.prompts))
-	slices.SortFunc(prompts, func(a, b prompt) int {
-		if a.Name < b.Name {
-			return -1
-		}
-		if a.Name > b.Name {
-			return 1
-		}
-		return 0
-	})
-	return &listPromptsResult{
-		Prompts: prompts,
-	}, nil
-}
-
-// handlePromptsGet handles the request to get a specific prompt.
-func (h *handler) handlePromptsGet(
-	ctx context.Context,
-	req *jsonrpc2.Request,
-) (interface{}, error) {
-	var params getPromptRequestParams
-	if err := h.qilin.jsonUnmarshalFunc(req.Params, &params); err != nil {
-		return nil, jsonrpc2.ErrInvalidParams
-	}
-
-	prompt, promptAvailable := h.qilin.prompts[params.Name]
-	if !promptAvailable {
-		return nil, jsonrpc2.ErrInvalidParams
-	}
-
-	c := h.qilin.promptContextPool.Get().(*promptContext)
-	var dest getPromptResult
-	c.promptName = params.Name
-	c.ctx = ctx
-	c.jsonrpcRequest = req
-	c.args = params.Arguments
-	c.dest = &dest
-	c.dest.Description = prompt.Description
-
-	defer func() {
-		c.reset()
-		h.qilin.promptContextPool.Put(c)
-	}()
-
-	if err := prompt.handler(c); err != nil {
-		return nil, fmt.Errorf("failed to handle prompt '%s': %w", params.Name, err)
-	}
-	return &dest, nil
 }
 
 // handleResourceSubscribe handles the request to subscribe to resource changes.
