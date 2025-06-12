@@ -472,8 +472,9 @@ func PromptWithArguments(arguments ...PromptArgument) PromptOption {
 // PromptWithMiddleware configures the Prompt middleware.
 func PromptWithMiddleware(middlewares ...PromptMiddlewareFunc) PromptOption {
 	return func(o *promptOptions) {
-		slices.Reverse(middlewares)
-		o.middlewares = slices.Concat(middlewares, o.middlewares)
+		middlewaresCopy := slices.Clone(middlewares)
+		slices.Reverse(middlewaresCopy)
+		o.middlewares = slices.Concat(middlewaresCopy, o.middlewares)
 	}
 }
 
@@ -1266,8 +1267,18 @@ func (h *handler) handleToolsCall(ctx context.Context, req *jsonrpc2.Request) (i
 
 // handlePromptsList handles the request to list prompts.
 func (h *handler) handlePromptsList() (interface{}, error) {
+	prompts := slices.Collect(maps.Values(h.qilin.prompts))
+	slices.SortFunc(prompts, func(a, b *Prompt) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
 	return &listPromptsResult{
-		Prompts: slices.Collect(maps.Values(h.qilin.prompts)),
+		Prompts: prompts,
 	}, nil
 }
 

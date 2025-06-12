@@ -455,7 +455,14 @@ func (c *promptContext) PromptName() string {
 }
 
 func (c *promptContext) Arguments() map[string]any {
-	return c.args
+	if c.args == nil {
+		return nil
+	}
+	copyArgs := make(map[string]any, len(c.args))
+	for k, v := range c.args {
+		copyArgs[k] = v
+	}
+	return copyArgs
 }
 
 func (c *promptContext) Bind(i any) error {
