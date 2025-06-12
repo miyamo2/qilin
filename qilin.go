@@ -1268,7 +1268,7 @@ func (h *handler) handleToolsCall(ctx context.Context, req *jsonrpc2.Request) (i
 // handlePromptsList handles the request to list prompts.
 func (h *handler) handlePromptsList() (interface{}, error) {
 	prompts := slices.Collect(maps.Values(h.qilin.prompts))
-	slices.SortFunc(prompts, func(a, b *Prompt) int {
+	slices.SortFunc(prompts, func(a, b Prompt) int {
 		if a.Name < b.Name {
 			return -1
 		}
