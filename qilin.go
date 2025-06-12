@@ -1461,7 +1461,6 @@ func (h *handler) reset() {
 		return
 	}
 	h.wg.Wait()
-
 	h.notify = nil
 	h.getSessionID = nil
 	h.setSessionID = nil
