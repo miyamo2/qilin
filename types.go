@@ -552,7 +552,7 @@ type prompt struct {
 	Description string `json:"description,omitzero"`
 
 	// Arguments contains the JSON Schema that defines the expected parameters for the prompt.
-	Arguments []promptArgument `json:"arguments,omitzero"`
+	Arguments []PromptArgument `json:"arguments,omitzero"`
 
 	// handler handles invocation of the prompt with the provided arguments.
 	handler PromptHandlerFunc
