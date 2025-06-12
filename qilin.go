@@ -918,6 +918,10 @@ func (b *binder) Bind(
 		h.noticeTransportError = inner.NoticeError
 	}
 
+	context.AfterFunc(b.qilin.rootCtx, func() {
+		conn.Close()
+	})
+
 	return jsonrpc2.ConnectionOptions{
 		Preempter: b.preempter,
 		Framer:    b.framer,
