@@ -14,7 +14,7 @@ Template
 
 ```.md
 
-## x.y.z - YYYY-MM-DD
+## [x.y.z] - YYYY-MM-DD
 
 ### ✨ New Features
 
@@ -23,6 +23,7 @@ Add this section when releasing new features.
 ### 💥 Breaking Changes
 
 Add this section when there are breaking changes that require users to update their code.
+If applicable, include the migration guide or a link to it.
 
 ### 🐛 Bug Fixes
 
@@ -35,6 +36,10 @@ Add this section when fixing critical issues that need immediate attention.
 ### ⚡️ Performance Improvements
 
 Add this section when improving performance.
+
+### 🔒 Security
+
+Add this section when addressing security vulnerabilities.
 
 ### 📝 Documentation
 
