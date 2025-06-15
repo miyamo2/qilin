@@ -361,19 +361,19 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsGet() {
 	s.Require().True(ok)
 	s.Require().Len(messages, 2)
 
-	// Check system message
-	systemMsg := messages[0].(map[string]any)
-	s.Require().Equal("system", systemMsg["role"])
-	systemContent := systemMsg["content"].(map[string]any)
-	s.Require().Equal("text", systemContent["type"])
-	s.Require().Equal("You are a helpful assistant.", systemContent["text"])
-
-	// Check user message
-	userMsg := messages[1].(map[string]any)
+	// Check a user message
+	userMsg := messages[0].(map[string]any)
 	s.Require().Equal("user", userMsg["role"])
 	userContent := userMsg["content"].(map[string]any)
 	s.Require().Equal("text", userContent["type"])
-	s.Require().Equal("Hello, Alice! How can I help you today?", userContent["text"])
+	s.Require().Equal("You are a helpful assistant.", userContent["text"])
+
+	// Check an assistant message
+	assistantMsg := messages[1].(map[string]any)
+	s.Require().Equal("assistant", assistantMsg["role"])
+	assistantContent := assistantMsg["content"].(map[string]any)
+	s.Require().Equal("text", assistantContent["type"])
+	s.Require().Equal("Hello, Alice! How can I help you today?", assistantContent["text"])
 }
 
 // TestStreamableTestSuite_PromptsGet_WithoutArguments tests prompts/get request without arguments via HTTP
@@ -423,7 +423,7 @@ func (s *StreamableTestSuite) TestStreamableTestSuite_PromptsGet_WithoutArgument
 	s.Require().True(ok)
 	s.Require().Len(messages, 2)
 
-	// Check user message uses default name
+	// Check a user message uses default name
 	userMsg := messages[1].(map[string]any)
 	userContent := userMsg["content"].(map[string]any)
 	s.Require().Equal("Hello, World! How can I help you today?", userContent["text"])
