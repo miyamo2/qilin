@@ -17,6 +17,9 @@
   <a href="https://deepwiki.com/miyamo2/qilin">
     <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
   </a>
+  <a href="https://gitmcp.io/miyamo2/qilin">
+    <img src="https://img.shields.io/endpoint?url=https://gitmcp.io/badge/miyamo2/qilin" alt="Ask DeepWiki">
+  </a>
 </h1>
 
 ## 🌟 Highlights
