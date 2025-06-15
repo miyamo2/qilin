@@ -428,7 +428,7 @@ type PromptContext interface {
 	BindableContext
 	// PromptName returns the name of the prompt
 	PromptName() string
-	// Param retrieves the patameter by name
+	// Param retrieves the parameter by name
 	Param(name string) string
 	// String sends plain text content
 	String(role, text string) error
