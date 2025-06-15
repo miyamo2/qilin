@@ -1323,7 +1323,8 @@ func (h *handler) handlePromptsGet(
 	c.promptName = params.Name
 	c.ctx = ctx
 	c.jsonrpcRequest = req
-	c.args = params.Arguments
+	c.rawArgs = params.Arguments
+	h.qilin.jsonUnmarshalFunc(params.Arguments, &c.args)
 	c.dest = &dest
 	c.dest.Description = prompt.Description
 
