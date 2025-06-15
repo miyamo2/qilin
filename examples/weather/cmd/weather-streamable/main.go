@@ -33,9 +33,35 @@ func main() {
 
 	q.ResourceListChangeObserver(handler.ResourceListChangeObserver)
 
-	listner, err := net.Listen("tcp", ":0")
+	q.Prompt("weather_report", handler.WeatherReport,
+		qilin.PromptWithDescription("Generate a weather report based on weather data"),
+		qilin.PromptWithArguments(
+			qilin.PromptArgument{
+				Name:        "city",
+				Description: "City name",
+				Required:    true,
+			}, qilin.PromptArgument{
+				Name:        "language",
+				Description: "Report language (e.g. 'en', 'ja')",
+			}))
+
+	q.Prompt("weather_alert", handler.WeatherAlert,
+		qilin.PromptWithDescription("Weather alert"),
+		qilin.PromptWithArguments(
+			qilin.PromptArgument{
+				Name:        "alert_type",
+				Description: "Type of alert (e.g. 'rain', 'snow', 'heat')",
+				Required:    true,
+			},
+			qilin.PromptArgument{
+				Name:        "severity",
+				Description: "Alert severity (1-5)",
+				Required:    true,
+			}))
+
+	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		panic(err)
 	}
-	q.Start(qilin.StartWithListener(transport.NewStreamable(transport.StreamableWithNetListener(listner))))
+	q.Start(qilin.StartWithListener(transport.NewStreamable(transport.StreamableWithNetListener(listener))))
 }

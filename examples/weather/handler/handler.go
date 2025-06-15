@@ -146,6 +146,55 @@ func ResourceList(c qilin.ResourceListContext) error {
 	return nil
 }
 
+func WeatherReport(c qilin.PromptContext) error {
+	cityName := c.Param("city")
+	city, err := repo.GetByCity(cityName)
+	if err != nil {
+		return err
+	}
+
+	c.String(qilin.PromptRoleUser, fmt.Sprintf("Please provide a weather report for %s", city.City))
+
+	language := "en"
+	if v := c.Param("language"); v != "" {
+		language = v
+	}
+
+	if language == "ja" {
+		return c.String(qilin.PromptRoleUser, fmt.Sprintf(
+			"%sの天気レポートです。現在の気温は%.1f℃、湿度は%.1f%%、天候は%sで、風速は%.1fm/sです。",
+			city.City, city.Temperature, city.Humidity, translateCondition(city.Condition, "ja"), city.WindSpeed,
+		))
+	}
+	return c.String(qilin.PromptRoleUser, fmt.Sprintf(
+		"Weather report for %s. Current temperature is %.1f°C, humidity is %.1f%%, weather condition is %s, and wind speed is %.1f m/s.",
+		city.City, city.Temperature, city.Humidity, city.Condition, city.WindSpeed,
+	))
+}
+
+func WeatherAlert(c qilin.PromptContext) error {
+	alertType := c.Param("alert_type")
+	severity := c.Param("severity")
+
+	c.String(
+		qilin.PromptRoleUser,
+		fmt.Sprintf("Generate a weather alert for %s with severity %s", alertType, severity))
+	switch alertType {
+	case "rain":
+		return c.String(
+			qilin.PromptRoleAssistant,
+			fmt.Sprintf("WEATHER ALERT: Heavy rain warning. Severity level: %s/5. Expect heavy rainfall and possible flooding in low-lying areas. Please take necessary precautions.", severity))
+	case "heat":
+		return c.String(
+			qilin.PromptRoleAssistant,
+			fmt.Sprintf("WEATHER ALERT: Heat warning. Severity level: %s/5. Extremely high temperatures expected. Stay hydrated and avoid direct sun exposure.", severity))
+	default:
+		return c.String(
+			qilin.PromptRoleAssistant,
+			fmt.Sprintf("WEATHER ALERT: %s warning. Severity level: %s/5. Please stay informed about changing weather conditions.", alertType, severity))
+	}
+}
+
 func WeatherForecastChangeObserver(c qilin.ResourceChangeContext) {
 	for t := range time.Tick(time.Minute) {
 		select {
@@ -176,4 +225,29 @@ func ResourceListChangeObserver(c qilin.ResourceListChangeContext) {
 			c.Publish(t)
 		}
 	}
+}
+
+// translateCondition translates weather conditions to the specified language
+func translateCondition(condition, language string) string {
+	if language != "ja" {
+		return condition
+	}
+
+	translations := map[string]string{
+		"sunny":    "晴れ",
+		"cloudy":   "曇り",
+		"rainy":    "雨",
+		"snowy":    "雪",
+		"foggy":    "霧",
+		"windy":    "強風",
+		"stormy":   "嵐",
+		"thunder":  "雷",
+		"drizzle":  "小雨",
+		"blizzard": "吹雪",
+	}
+
+	if translation, ok := translations[condition]; ok {
+		return translation
+	}
+	return condition
 }
