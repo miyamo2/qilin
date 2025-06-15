@@ -2,6 +2,7 @@ package qilin_test
 
 import (
 	"fmt"
+
 	"github.com/miyamo2/qilin"
 )
 
