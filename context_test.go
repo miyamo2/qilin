@@ -1438,19 +1438,26 @@ func TestPromptContext_PromptName(t *testing.T) {
 	})
 }
 
-func TestPromptContext_Arguments(t *testing.T) {
+func TestPromptContext_Param(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
-		args := map[string]string{"name": "John", "age": "30"}
 		c := newPromptContext(nil, nil, nil)
-		c.args = args
-		if got := c.Arguments(); !reflect.DeepEqual(got, args) {
-			t.Fatalf("expected %v, got %v", args, got)
+		c.args = map[string]string{"key": "value"}
+		if got := c.Param("key"); got != "value" {
+			t.Fatalf("expected 'value', got %v", got)
 		}
 	})
-	t.Run("unset", func(t *testing.T) {
+	t.Run("missing key", func(t *testing.T) {
 		c := newPromptContext(nil, nil, nil)
-		if got := c.Arguments(); got != nil {
-			t.Fatalf("expected nil, got %v", got)
+		c.args = map[string]string{"key": "value"}
+		if got := c.Param("missing"); got != "" {
+			t.Fatalf("expected empty string, got %v", got)
+		}
+	})
+	t.Run("nil args", func(t *testing.T) {
+		c := newPromptContext(nil, nil, nil)
+		c.args = nil
+		if got := c.Param("key"); got != "" {
+			t.Fatalf("expected empty string, got %v", got)
 		}
 	})
 }
@@ -1462,7 +1469,7 @@ func TestPromptContext_Bind(t *testing.T) {
 			Age  string `json:"age"`
 		}
 		c := newPromptContext(json.Unmarshal, json.Marshal, nil)
-		c.args = map[string]string{"name": "John", "age": "30"}
+		c.rawArgs = []byte(`{"name": "John", "age": "30"}`)
 		var args Args
 		err := c.Bind(&args)
 		if err != nil {

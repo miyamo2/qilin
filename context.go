@@ -428,8 +428,8 @@ type PromptContext interface {
 	BindableContext
 	// PromptName returns the name of the prompt
 	PromptName() string
-	// Arguments returns the arguments passed to the prompt
-	Arguments() map[string]string
+	// Param retrieves the parameter by name
+	Param(name string) string
 	// String sends plain text content
 	String(role, text string) error
 	// JSON sends JSON content
@@ -445,6 +445,7 @@ var _ PromptContext = (*promptContext)(nil)
 type promptContext struct {
 	_context
 	promptName       string
+	rawArgs          json.RawMessage
 	args             map[string]string
 	dest             *getPromptResult
 	base64StringFunc Base64StringFunc
@@ -454,26 +455,15 @@ func (c *promptContext) PromptName() string {
 	return c.promptName
 }
 
-func (c *promptContext) Arguments() map[string]string {
-	if c.args == nil {
-		return nil
-	}
-	copyArgs := make(map[string]string, len(c.args))
-	for k, v := range c.args {
-		copyArgs[k] = v
-	}
-	return copyArgs
+func (c *promptContext) Param(name string) string {
+	return c.args[name]
 }
 
 func (c *promptContext) Bind(i any) error {
-	if c.args == nil || len(c.args) == 0 {
+	if len(c.rawArgs) == 0 {
 		return nil
 	}
-	data, err := c.jsonMarshalFunc(c.args)
-	if err != nil {
-		return err
-	}
-	return c.jsonUnmarshalFunc(data, i)
+	return c.jsonUnmarshalFunc(c.rawArgs, i)
 }
 
 func (c *promptContext) String(role, text string) error {
