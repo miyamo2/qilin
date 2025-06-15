@@ -96,6 +96,54 @@ const (
 	MethodLoggingSetLevel = "logging/setLevel"
 )
 
+// PromptRole indicates the speaker in a prompt message
+type PromptRole int
+
+const (
+	// PromptRoleUnknown indicates an unknown or unrecognized role.
+	PromptRoleUnknown PromptRole = iota
+
+	// PromptRoleUser indicates the user role in a prompt message.
+	PromptRoleUser
+
+	// PromptRoleAssistant indicates the assistant role in a prompt message.
+	PromptRoleAssistant
+)
+
+// String returns the string representation of the PromptRole.
+func (r PromptRole) String() string {
+	switch r {
+	case PromptRoleUser:
+		return "user"
+	case PromptRoleAssistant:
+		return "assistant"
+	default:
+		return "unknown"
+	}
+}
+
+// PromptRoleFromString converts a string to a PromptRole.
+func PromptRoleFromString(s string) PromptRole {
+	switch s {
+	case "user":
+		return PromptRoleUser
+	case "assistant":
+		return PromptRoleAssistant
+	default:
+		return PromptRoleUnknown
+	}
+}
+
+// Validate checks if the given PromptRole is valid.
+func (r PromptRole) Validate() error {
+	switch r {
+	case PromptRoleUser, PromptRoleAssistant:
+		return nil
+	default:
+		return ErrInvalidPromptRole
+	}
+}
+
 // implementation describes the name and version of an MCP implementation.
 type implementation struct {
 	Name    string `json:"name"`

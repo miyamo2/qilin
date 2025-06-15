@@ -431,13 +431,13 @@ type PromptContext interface {
 	// Param retrieves the parameter by name
 	Param(name string) string
 	// String sends plain text content
-	String(role, text string) error
+	String(role PromptRole, text string) error
 	// JSON sends JSON content
-	JSON(role string, i any) error
+	JSON(role PromptRole, i any) error
 	// Image sends image content
-	Image(role string, data []byte, mimeType string) error
+	Image(role PromptRole, data []byte, mimeType string) error
 	// Resource sends embedded resource content
-	Resource(role string, resource ResourceContent) error
+	Resource(role PromptRole, resource ResourceContent) error
 }
 
 var _ PromptContext = (*promptContext)(nil)
@@ -466,9 +466,12 @@ func (c *promptContext) Bind(i any) error {
 	return c.jsonUnmarshalFunc(c.rawArgs, i)
 }
 
-func (c *promptContext) String(role, text string) error {
+func (c *promptContext) String(role PromptRole, text string) error {
+	if err := role.Validate(); err != nil {
+		return err
+	}
 	c.dest.Messages = append(c.dest.Messages, promptMessage{
-		Role: role,
+		Role: role.String(),
 		Content: &textPromptContent{
 			Text:    text,
 			marshal: c.jsonMarshalFunc,
@@ -477,13 +480,16 @@ func (c *promptContext) String(role, text string) error {
 	return nil
 }
 
-func (c *promptContext) JSON(role string, i any) error {
+func (c *promptContext) JSON(role PromptRole, i any) error {
+	if err := role.Validate(); err != nil {
+		return err
+	}
 	b, err := c.jsonMarshalFunc(i)
 	if err != nil {
 		return err
 	}
 	c.dest.Messages = append(c.dest.Messages, promptMessage{
-		Role: role,
+		Role: role.String(),
 		Content: &textPromptContent{
 			Text:    string(b),
 			marshal: c.jsonMarshalFunc,
@@ -492,10 +498,13 @@ func (c *promptContext) JSON(role string, i any) error {
 	return nil
 }
 
-func (c *promptContext) Image(role string, data []byte, mimeType string) error {
+func (c *promptContext) Image(role PromptRole, data []byte, mimeType string) error {
+	if err := role.Validate(); err != nil {
+		return err
+	}
 	enc := c.base64StringFunc(data)
 	c.dest.Messages = append(c.dest.Messages, promptMessage{
-		Role: role,
+		Role: role.String(),
 		Content: &imagePromptContent{
 			Data:     enc,
 			MimeType: mimeType,
@@ -505,9 +514,12 @@ func (c *promptContext) Image(role string, data []byte, mimeType string) error {
 	return nil
 }
 
-func (c *promptContext) Resource(role string, resource ResourceContent) error {
+func (c *promptContext) Resource(role PromptRole, resource ResourceContent) error {
+	if err := role.Validate(); err != nil {
+		return err
+	}
 	c.dest.Messages = append(c.dest.Messages, promptMessage{
-		Role: role,
+		Role: role.String(),
 		Content: &embedResourcePromptContent{
 			Resource: resource,
 			marshal:  c.jsonMarshalFunc,

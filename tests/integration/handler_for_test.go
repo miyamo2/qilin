@@ -53,11 +53,14 @@ func GreetingPromptHandler(c qilin.PromptContext) error {
 		name = "World"
 	}
 
-	if err := c.String("system", "You are a helpful assistant."); err != nil {
+	if err := c.String(qilin.PromptRoleUser, "You are a helpful assistant."); err != nil {
 		return err
 	}
 
-	return c.String("user", fmt.Sprintf("Hello, %s! How can I help you today?", name))
+	return c.String(
+		qilin.PromptRoleAssistant,
+		fmt.Sprintf("Hello, %s! How can I help you today?", name),
+	)
 }
 
 type Beer struct {

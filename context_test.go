@@ -1501,14 +1501,14 @@ func TestPromptContext_String(t *testing.T) {
 		var dest getPromptResult
 		c := newPromptContext(nil, json.Marshal, nil)
 		c.dest = &dest
-		if err := c.String("user", "Hello world"); err != nil {
+		if err := c.String(PromptRoleUser, "Hello world"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(c.dest.Messages) != 1 {
 			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
 		}
 		msg := c.dest.Messages[0]
-		if msg.Role != "user" {
+		if msg.Role != PromptRoleUser.String() {
 			t.Fatalf("expected role 'user', got %v", msg.Role)
 		}
 		textContent, ok := msg.Content.(*textPromptContent)
@@ -1517,6 +1517,18 @@ func TestPromptContext_String(t *testing.T) {
 		}
 		if textContent.Text != "Hello world" {
 			t.Fatalf("expected 'Hello world', got %v", textContent.Text)
+		}
+	})
+	t.Run("unknown role", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, nil)
+		c.dest = &dest
+		err := c.String(-1, "Hello world")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, ErrInvalidPromptRole) {
+			t.Fatalf("expected %v, got %v", ErrInvalidPromptRole, err)
 		}
 	})
 }
@@ -1530,14 +1542,14 @@ func TestPromptContext_JSON(t *testing.T) {
 		c := newPromptContext(nil, json.Marshal, nil)
 		c.dest = &dest
 		data := Data{Message: "hello"}
-		if err := c.JSON("assistant", data); err != nil {
+		if err := c.JSON(PromptRoleUser, data); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(c.dest.Messages) != 1 {
 			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
 		}
 		msg := c.dest.Messages[0]
-		if msg.Role != "assistant" {
+		if msg.Role != PromptRoleUser.String() {
 			t.Fatalf("expected role 'assistant', got %v", msg.Role)
 		}
 		textContent, ok := msg.Content.(*textPromptContent)
@@ -1547,6 +1559,18 @@ func TestPromptContext_JSON(t *testing.T) {
 		expected := `{"message":"hello"}`
 		if textContent.Text != expected {
 			t.Fatalf("expected %s, got %v", expected, textContent.Text)
+		}
+	})
+	t.Run("unknown role", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, nil)
+		c.dest = &dest
+		err := c.JSON(-1, map[string]string{"key": "value"})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, ErrInvalidPromptRole) {
+			t.Fatalf("expected %v, got %v", ErrInvalidPromptRole, err)
 		}
 	})
 }
@@ -1559,14 +1583,14 @@ func TestPromptContext_Image(t *testing.T) {
 		})
 		c.dest = &dest
 		imageData := []byte("image-data")
-		if err := c.Image("user", imageData, "image/png"); err != nil {
+		if err := c.Image(PromptRoleUser, imageData, "image/png"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(c.dest.Messages) != 1 {
 			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
 		}
 		msg := c.dest.Messages[0]
-		if msg.Role != "user" {
+		if msg.Role != PromptRoleUser.String() {
 			t.Fatalf("expected role 'user', got %v", msg.Role)
 		}
 		imageContent, ok := msg.Content.(*imagePromptContent)
@@ -1578,6 +1602,18 @@ func TestPromptContext_Image(t *testing.T) {
 		}
 		if imageContent.MimeType != "image/png" {
 			t.Fatalf("expected 'image/png', got %v", imageContent.MimeType)
+		}
+	})
+	t.Run("unknown role", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, nil)
+		c.dest = &dest
+		err := c.Image(-1, []byte("image-data"), "image/png")
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, ErrInvalidPromptRole) {
+			t.Fatalf("expected %v, got %v", ErrInvalidPromptRole, err)
 		}
 	})
 }
@@ -1596,14 +1632,14 @@ func TestPromptContext_Resource(t *testing.T) {
 			text:    "resource content",
 			marshal: json.Marshal,
 		}
-		if err := c.Resource("system", resource); err != nil {
+		if err := c.Resource(PromptRoleUser, resource); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(c.dest.Messages) != 1 {
 			t.Fatalf("expected 1 message, got %d", len(c.dest.Messages))
 		}
 		msg := c.dest.Messages[0]
-		if msg.Role != "system" {
+		if msg.Role != PromptRoleUser.String() {
 			t.Fatalf("expected role 'system', got %v", msg.Role)
 		}
 		resourceContent, ok := msg.Content.(*embedResourcePromptContent)
@@ -1612,6 +1648,25 @@ func TestPromptContext_Resource(t *testing.T) {
 		}
 		if !reflect.DeepEqual(resourceContent.Resource, resource) {
 			t.Fatalf("expected %v, got %v", resource, resourceContent.Resource)
+		}
+	})
+	t.Run("unknown role", func(t *testing.T) {
+		var dest getPromptResult
+		c := newPromptContext(nil, json.Marshal, nil)
+		c.dest = &dest
+		err := c.Resource(-1, &textResourceContent{
+			resourceContentBase: resourceContentBase{
+				uri:      weak.Make(MustURL(t, "example://example.com")),
+				mimeType: "text/plain",
+			},
+			text:    "resource content",
+			marshal: json.Marshal,
+		})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !errors.Is(err, ErrInvalidPromptRole) {
+			t.Fatalf("expected %v, got %v", ErrInvalidPromptRole, err)
 		}
 	})
 }
