@@ -16,7 +16,7 @@
     "@iconify/json": "^2.2.346",
     "astro": "^5.6.1",
     "sharp": "^0.34.0",
-    "starlight-theme-nova": "^0.7.4",
+    "starlight-theme-nova": "^0.9.0",
     "unplugin-icons": "^22.1.0"
   }
 }
