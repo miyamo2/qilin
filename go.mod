@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.13.0
-	golang.org/x/exp/jsonrpc2 v0.0.0-20250606033433-dcc06ee1d476
+	golang.org/x/exp/jsonrpc2 v0.0.0-20250620022241-b7579e27df2b
 )
 
 require (
