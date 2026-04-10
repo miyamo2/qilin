@@ -1,11 +1,11 @@
 module github.com/miyamo2/qilin
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/invopop/jsonschema v0.13.0
-	golang.org/x/exp/jsonrpc2 v0.0.0-20250606033433-dcc06ee1d476
+	golang.org/x/exp/jsonrpc2 v0.0.0-20260410095643-746e56fc9e2f
 )
 
 require (
@@ -13,7 +13,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	golang.org/x/exp/event v0.0.0-20250606033433-dcc06ee1d476 // indirect
+	golang.org/x/exp/event v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
